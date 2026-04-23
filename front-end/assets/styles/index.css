@@ -1,0 +1,12 @@
+.card-page h1 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+}
+
+.card-page > p {
+  max-width: 650px;
+  color: var(--text-soft);
+  line-height: 1.7;
+  margin-bottom: 30px;
+  font-size: 1.05rem;
+}

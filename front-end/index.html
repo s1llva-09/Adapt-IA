@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adapt IA</title>
+  <link rel="stylesheet" href="assets/styles/global.css">
+  <link rel="stylesheet" href="assets/styles/index.css">
+</head>
+<body>
+  <main class="container">
+    <section class="card-page">
+      <h1>Escolha sua IA</h1>
+      <p>
+        Selecione o provedor para iniciar um chat moderno, adaptável e com contexto inteligente.
+      </p>
+
+      <div class="cards">
+        <button class="choice-card" onclick="selectProvider('openai')">
+          <h2>OpenAI</h2>
+          <p>
+            Use OpenAI com fallback automático quando necessário, mantendo a conversa fluida.
+          </p>
+        </button>
+
+        <button class="choice-card" onclick="selectProvider('gemini')">
+          <h2>Gemini</h2>
+          <p>
+            Use Gemini para respostas rápidas, gratuitas e bem adaptadas ao contexto.
+          </p>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="assets/js/main.js"></script>
+</body>
+</html>

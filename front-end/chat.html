@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adapt IA - Chat</title>
+  <link rel="stylesheet" href="assets/styles/global.css">
+</head>
+<body>
+  <button class="toggle-sidebar" onclick="toggleSidebar()">☰</button>
+
+  <main class="chat-layout">
+    <aside class="chat-sidebar">
+      <div class="sidebar-header">
+        <h2>Adapt IA</h2>
+        <p>
+          Converse naturalmente. A IA entende o contexto ao longo das mensagens.
+        </p>
+      </div>
+
+      <div class="info-box">
+        <p><strong>IA selecionada:</strong></p>
+        <p><span id="providerLabel">-</span></p>
+      </div>
+
+      <div class="sidebar-actions">
+        <button class="secondary-btn" onclick="clearChat()">Limpar conversa</button>
+        <button class="secondary-btn" onclick="goBack()">Trocar IA</button>
+      </div>
+    </aside>
+
+    <section class="chat-panel">
+      <header class="chat-topbar">
+        <h1>Seu chat inteligente</h1>
+        <p>Faça perguntas, mude de assunto e deixe a IA se adaptar ao contexto.</p>
+      </header>
+
+      <div id="chatMessages" class="chat-messages"></div>
+
+      <form id="chatForm" class="chat-form">
+        <textarea
+          id="messageInput"
+          placeholder="Digite sua mensagem..."
+          rows="1"
+        ></textarea>
+
+        <button type="submit">Enviar</button>
+      </form>
+    </section>
+  </main>
+
+  <script type="module" src="assets/js/chat.js"></script>
+</body>
+</html>
