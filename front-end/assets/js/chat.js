@@ -1,4 +1,4 @@
-import { sendMessage } from "./api.js";
+import { sendMessage, uploadFile } from "./api.js";
 
 // Retorna a IA escolhida
 function getProvider() {
@@ -262,12 +262,14 @@ async function handleSubmit(event) {
   event.preventDefault();
 
   const input = document.getElementById("messageInput");
+  const fileInput = document.getElementById("fileInput");
+  const file = fileInput?.files[0]
   const provider = getProvider();
 
   if (!input || !provider) return;
 
   const message = input.value.trim();
-  if (!message) return;
+  if (!message && !file) return;
 
   addMessage("user", message);
   renderMessages();
@@ -278,7 +280,17 @@ async function handleSubmit(event) {
   showTyping();
 
   try {
-    const data = await sendMessage(provider, message, getChatHistory());
+    const data = file
+      ? await uploadFile (
+          provider,
+          message || "Analise este arquivo",
+          getChatHistory(),
+          file
+      )
+    : await sendMessage(provider, message, getChatHistory())
+
+    if (fileInput) fileInput.value = ""
+
     const reply = data.reply || "Sem resposta da IA.";
 
     removeTyping();
@@ -336,6 +348,16 @@ function initializeChat() {
 
   if (form) {
     form.addEventListener("submit", handleSubmit);
+  }
+
+const fileInput = document.getElementById("fileInput");
+const fileNamePreview = document.getElementById("fileNamePreview");
+
+  if (fileInput && fileNamePreview) {
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      fileNamePreview.textContent = file ? file.name : "";
+    });
   }
 }
 

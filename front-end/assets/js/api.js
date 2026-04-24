@@ -32,3 +32,26 @@ export async function sendMessage(provider, message, history) {
   // Retorna os dados da resposta
   return data;
 }
+
+export async function uploadFile(provider, message, history, file) {
+  const formData = new FormData();
+
+  formData.append("provider", provider);
+  formData.append("message", message);
+  formData.append("history", JSON.stringify(history));
+  formData.append("file", file);
+
+  const response = await fetch(`${API_URL}/upload`, {
+    method: "POST",
+    body: formData
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error("Erro vindo do backend:", data);
+    throw new Error(data.reply || "Erro ao enviar arquivo.");
+  }
+
+  return data;
+}

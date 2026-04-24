@@ -4,7 +4,7 @@
 const fs = require("fs") //um modulo para conseguir ler arquivos, escrever, apagar etc
 const path = require("path") //ajuda a trabalhar com caminhos de arquivos Exemplo: pegar pfd de arquivo .pdf
 const mammoth = require("mammoth") //biblioca para extrair o texto de arquivos txt(word) em geral
-const pdfParse = require("pdfParse") //biblioteca para extrair textos de arquivos pdf
+const pdfParse = require("pdf-Parse") //biblioteca para extrair textos de arquivos pdf
 
 // Lista de arquivos que podem ser lidos como texto diretamente
 const TEXT_EXTENSIONS = [
