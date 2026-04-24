@@ -453,15 +453,18 @@ body.sidebar-collapsed .chat-sidebar {
 .avatar {
   width: 36px;
   height: 36px;
+  min-width: 36px;
   border-radius: 50%;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
   flex-shrink: 0;
 }
-
 /* avatar usuário */
 .avatar-user {
   background: linear-gradient(135deg, #2563eb, #3b82f6);
@@ -481,12 +484,15 @@ body.sidebar-collapsed .chat-sidebar {
 /* ============================= */
 
 .message {
-  max-width: 70%;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 48px;
   padding: 14px 16px;
   border-radius: 16px;
   line-height: 1.6;
-  word-break: break-word;
-  white-space: normal;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
   font-size: 0.95rem;
 }
 
@@ -567,6 +573,7 @@ body.sidebar-collapsed .chat-sidebar {
   flex-direction: column;
   gap: 6px;
   max-width: 72%;
+  min-width: 0;
 }
 
 .row-user .message-box {
