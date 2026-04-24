@@ -1,8 +1,5 @@
-#Crie um arquivo .env e ponha essas informações dentro dele
+Copie o arquivo de exemplo:
 
-" OPENAI_API_KEY= cola aqui
+cp backend/.env.example backend/.env
 
-GEMINI_API_KEY= cola aqui
-PORT=3000
-
-"
+Depois preencha suas chaves.

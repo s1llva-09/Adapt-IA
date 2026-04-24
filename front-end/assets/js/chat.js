@@ -231,8 +231,7 @@ function setupTextarea() {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
 
-      const form = document.getElementById("chatForm");
-      if (form) form.requestSubmit();
+      handleSubmit(event);
     }
   });
 
@@ -257,58 +256,111 @@ async function typeMessage(content) {
   }
 }
 
-// Envio do formulário
+// Função chamada quando o formulário é enviado (clicar em "Enviar" ou Enter)
 async function handleSubmit(event) {
-  event.preventDefault();
+  // Impede o comportamento padrão do formulário (recarregar a página)
+  if (event) event.preventDefault();
 
+  // Pega o input de texto
   const input = document.getElementById("messageInput");
+
+  // Pega o input de arquivo (📎)
   const fileInput = document.getElementById("fileInput");
-  const file = fileInput?.files[0]
+
+  // Pega o arquivo selecionado (se existir)
+  // ?. evita erro caso fileInput seja null
+  const file = fileInput?.files[0];
+
+  // Debug: mostra no console o arquivo selecionado
+  console.log("Arquivo selecionado:", file);
+
+  // Pega qual IA foi selecionada (OpenAI ou Gemini)
   const provider = getProvider();
 
+  // Se não tiver input ou provider, não continua
   if (!input || !provider) return;
 
+  // Pega a mensagem digitada e remove espaços extras
   const message = input.value.trim();
+
+  // Se não tiver mensagem E nem arquivo, não envia nada
   if (!message && !file) return;
 
-  addMessage("user", message);
+  // Adiciona mensagem do usuário no histórico
+  // Se não tiver texto, mostra que enviou arquivo
+  addMessage("user", message || `Arquivo enviado: ${file.name}`);
+
+  // Atualiza o chat na tela
   renderMessages();
 
+  // Limpa o campo de texto
   input.value = "";
+
+  // Reseta altura do textarea (auto resize)
   input.style.height = "auto";
 
+  // Mostra "IA está digitando..."
   showTyping();
 
   try {
+    // Se tiver arquivo → usa uploadFile
+    // Senão → usa sendMessage normal
     const data = file
-      ? await uploadFile (
+      ? await uploadFile(
+          provider, // qual IA usar
+          message || "Analise este arquivo.", // mensagem padrão se não tiver texto
+          getChatHistory(), // histórico da conversa
+          file // arquivo enviado
+        )
+      : await sendMessage(
           provider,
-          message || "Analise este arquivo",
-          getChatHistory(),
-          file
-      )
-    : await sendMessage(provider, message, getChatHistory())
+          message,
+          getChatHistory()
+        );
 
-    if (fileInput) fileInput.value = ""
+    // Limpa o input de arquivo (remove o arquivo selecionado)
+    if (fileInput) fileInput.value = "";
 
+    // Limpa preview visual (imagem ou nome)
+    const filePreview = document.getElementById("filePreview");
+    if (filePreview) filePreview.innerHTML = "";
+
+    // Limpa o nome do arquivo exibido na tela (caso use span separado)
+    const fileNamePreview = document.getElementById("fileNamePreview");
+    if (fileNamePreview) fileNamePreview.textContent = "";
+
+    // Pega a resposta da IA
     const reply = data.reply || "Sem resposta da IA.";
 
+    // Remove o "digitando..."
     removeTyping();
+
+    // Renderiza novamente (limpa e atualiza)
     renderMessages();
 
+    // Mostra resposta com efeito digitando
     await typeMessage(reply);
 
+    // Salva resposta da IA no histórico
     addMessage("assistant", reply);
+
+    // Atualiza novamente o chat
     renderMessages();
+
   } catch (error) {
+    // Se der erro → remove "digitando"
     removeTyping();
 
+    // Mostra mensagem de erro no chat
     addMessage(
       "assistant",
       "Desculpe, houve um erro ao conectar com o servidor."
     );
 
+    // Atualiza tela
     renderMessages();
+
+    // Mostra erro real no console (debug)
     console.error("erro ao enviar a mensagem:", error);
   }
 }
@@ -318,6 +370,7 @@ function initializeChat() {
   const provider = getProvider();
   const providerLabel = document.getElementById("providerLabel");
   const form = document.getElementById("chatForm");
+  const sendButton = document.getElementById("sendButton");
 
   if (!provider) {
     window.location.href = "index.html";
@@ -346,17 +399,44 @@ function initializeChat() {
   renderMessages();
   setupTextarea();
 
+  if (sendButton) {
+    sendButton.addEventListener("click", handleSubmit);
+  }
+
   if (form) {
     form.addEventListener("submit", handleSubmit);
   }
 
-const fileInput = document.getElementById("fileInput");
-const fileNamePreview = document.getElementById("fileNamePreview");
+  const fileInput = document.getElementById("fileInput"); // busca o elemento fileInput
+  const fileNamePreview = document.getElementById("fileNamePreview"); // busca o elemento onde irá mostrar o nome do arquivo
+  const filePreview = document.getElementById("filePreview"); // busca o elemento onde irá mostrar o preview do arquivo ou imagem
 
-  if (fileInput && fileNamePreview) {
-    fileInput.addEventListener("change", () => {
-      const file = fileInput.files[0];
-      fileNamePreview.textContent = file ? file.name : "";
+  if (fileInput) { // verifica se o input de arquivo existe
+    fileInput.addEventListener("change", () => { // aciona o evento quando é importado um arquivo ou quando troca etc.
+      const file = fileInput.files[0]; // cria uma lista para os arquivos e pega o primeiro deles ([0])
+
+      if (fileNamePreview) { // verifica se o elemento do nome do arquivo existe
+        fileNamePreview.textContent = file ? file.name : ""; // se o arquivo existir mostra o nome dele, se não limpa o texto
+      }
+
+      if (filePreview) { // verifica se o elemento de preview existe
+        filePreview.innerHTML = ""; // limpa o preview anterior antes de mostrar o novo arquivo
+
+        if (!file) return; // se não tiver arquivo selecionado, para a função
+
+        if (file.type.startsWith("image/")) { // verifica se o arquivo selecionado é uma imagem
+          const img = document.createElement("img"); // cria uma tag img para mostrar a imagem na tela
+          img.src = URL.createObjectURL(file); // cria uma URL temporária para exibir a imagem selecionada
+
+          const span = document.createElement("span"); // cria um span para mostrar o nome do arquivo
+          span.textContent = file.name; // coloca o nome do arquivo dentro do span
+
+          filePreview.appendChild(img); // adiciona a imagem dentro do preview
+          filePreview.appendChild(span); // adiciona o nome do arquivo dentro do preview
+        } else {
+          filePreview.innerHTML = `<span>${file.name}</span>`; // se não for imagem, mostra apenas o nome do arquivo
+        }
+      }
     });
   }
 }

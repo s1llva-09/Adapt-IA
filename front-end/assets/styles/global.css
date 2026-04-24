@@ -683,3 +683,28 @@ body.sidebar-collapsed .chat-sidebar {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/*================== PREVIEW FILE ========================*/
+.file-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  max-width: 220px;
+  overflow: hidden;
+}
+
+.file-preview img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.file-preview span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
