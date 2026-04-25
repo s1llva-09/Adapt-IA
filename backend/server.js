@@ -1,91 +1,112 @@
-// Importa o Express para criar o servidor
 const express = require("express");
-
-// Importa o CORS para permitir chamadas do front-end
 const cors = require("cors");
+const fs = require("fs");
+const multer = require("multer");
+const path = require("path");
 
-//Permite o servidor receber arquivos enviados pelo usuário
-const multer = require("multer") //recebe arquivos
-
-//Importa um módulo nativo do Node.js
-//Ajuda a trabalhar com caminhos e arquivos
-const path = require("path") //manipula eles
-
-// Carrega as variáveis de ambiente do arquivo .env dentro de backend/
+// Carrega as variaveis do backend antes de inicializar os clientes das IAs.
 require("dotenv").config({ path: "./backend/.env" });
 
-// Importa os serviços que falam com OpenAI e Gemini
+// Servicos de texto e de arquivo usados pelas rotas abaixo.
 const { sendToOpenAI } = require("./services/openaiService");
 const { sendToGemini } = require("./services/geminiService");
+const { extractFileContent, isImageFile } = require("./services/fileService");
+const { analyzeImageWithGemini } = require("./services/visionService");
 
-//importa os serviços de analise de imagem tanto com o gemini quanto com a biblioteca instalada
-const { extractFileContent, isImageFile } = require("./services/fileService")
-const { analyzeImageWithGemini } = require("./services/visionService")
-
-// Cria a aplicação
 const app = express();
 
-// Middlewares
+// Libera chamadas do front-end e permite receber JSON nas rotas de chat.
 app.use(cors());
 app.use(express.json());
 
-//configura o multer para salvar arquivos temporariamente em backend / uploads
-const upload = multer ({
+// Log simples de requisicoes para facilitar debug.
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+
+  res.on("finish", () => {
+    const duration = Date.now() - startedAt;
+    console.log(`[http] ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+  });
+
+  next();
+});
+
+// O Multer salva o upload temporariamente em backend/uploads e protege o servidor
+// com um limite maximo de tamanho por arquivo.
+const upload = multer({
   dest: path.join(__dirname, "uploads"),
   limits: {
     fileSize: 15 * 1024 * 1024
   }
-})
+});
 
-// Logs úteis para conferir se as chaves foram carregadas
-console.log("OPENAI:", process.env.OPENAI_API_KEY ? "OK" : "NÃO ENCONTRADA");
-console.log("GEMINI:", process.env.GEMINI_API_KEY ? "OK" : "NÃO ENCONTRADA");
+console.log("OPENAI:", process.env.OPENAI_API_KEY ? "OK" : "NAO ENCONTRADA");
+console.log("GEMINI:", process.env.GEMINI_API_KEY ? "OK" : "NAO ENCONTRADA");
 
-// Prompt-base do sistema
 function getSystemPrompt() {
+  // Prompt base usado nas conversas de texto e tambem no fluxo de upload de documentos.
   return `
-Você é um assistente inteligente e adaptável.
+Voce e um assistente inteligente e adaptavel.
 
 Regras:
 - Entenda o contexto pela conversa.
-- Se o usuário falar de programação, responda como especialista.
+- Se o usuario falar de programacao, responda como especialista.
 - Se mudar de assunto, adapte-se ao novo contexto.
-- Responda sempre no idioma do usuário.
-- Seja claro, natural e útil.
+- Responda sempre no idioma do usuario.
+- Seja claro, natural e util.
   `.trim();
+}
+
+app.get("/health", (req, res) => {
+  return res.json({
+    status: "ok",
+    service: "adapt-ia-backend"
+  });
+});
+
+function normalizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+
+  return history.filter((item) => {
+    return (
+      item &&
+      typeof item === "object" &&
+      ["user", "assistant", "system"].includes(item.role) &&
+      typeof item.content === "string"
+    );
+  });
 }
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    const { provider, message = "Analise este arquivos.", history = "[]" } = req.body
+    // O front envia provider, mensagem opcional, historico serializado e o arquivo.
+    const { provider, message = "Analise este arquivo.", history = "[]" } = req.body;
 
     if (!req.file) {
       return res.status(400).json({
         reply: "Nenhum arquivo foi enviado"
-      })
+      });
     }
 
-    const parsedHistory = JSON.parse(history)
+    const parsedHistory = JSON.parse(history);
+    let reply;
 
-    let reply
-
-    //se for imagem usa o gemini multimodal
-    if(isImageFile(req.file)) {
-      reply = await analyzeImageWithGemini(req.file, message)
+    if (isImageFile(req.file)) {
+      // Imagens seguem para o servico multimodal. Hoje esse fluxo usa Gemini.
+      reply = await analyzeImageWithGemini(req.file, message);
 
       return res.json({
         reply,
         fileName: req.file.originalname
-      })
+      });
     }
 
-    //se for document/text/codigo, extrai o conteudo
-    const filecontent = await extractFileContent(req.file) 
-
-      const systemPrompt = {
-        role: "system",
-        content: getSystemPrompt()
-    }
+    // Arquivos de texto, PDF e DOCX tem o conteudo extraido e anexado ao prompt.
+    const fileContent = await extractFileContent(req.file);
+    const systemPrompt = {
+      role: "system",
+      content: getSystemPrompt()
+    };
 
     const fileMessage = {
       role: "user",
@@ -96,63 +117,94 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       Arquivo enviado:
       ${req.file.originalname}
 
-      Conteúdo extraído do arquivo:
-      ${filecontent}
-        `.trim()
-    }
+      Conteudo extraido do arquivo:
+      ${fileContent}
+      `.trim()
+    };
 
-    const messages = [systemPrompt, ...parsedHistory, fileMessage]
+    const messages = [systemPrompt, ...parsedHistory, fileMessage];
 
-    if(provider === "openai") {
+    if (provider === "openai") {
       try {
-        reply = await sendToOpenAI(messages)
+        // Mantem a preferencia do usuario pelo provider escolhido.
+        reply = await sendToOpenAI(messages);
       } catch (error) {
-        console.log("OpenAi falhou no upload, usando Gemini...")
-        reply = await sendToGemini(messages)
+        // Se OpenAI falhar, tenta Gemini para nao perder a resposta.
+        console.log("OpenAI falhou no upload, usando Gemini...");
+        reply = await sendToGemini(messages);
       }
-    }else {
-      reply = await sendToGemini(messages)
+    } else {
+      reply = await sendToGemini(messages);
     }
 
     return res.json({
       reply,
       fileName: req.file.originalname
-    })
-  } catch(error) {
-    console.log("Erro no /upload:", error)
+    });
+  } catch (error) {
+    console.log("Erro no /upload:", error);
 
-    return res.status(500).json({
-      reply: "Erro ao processar o arquivo",
+    // Alguns erros sao causados pelo proprio arquivo enviado, entao retornamos 400.
+    const isClientUploadError =
+      error instanceof SyntaxError ||
+      error.status === 429 ||
+      error.message?.includes("Nao foi possivel analisar essa imagem") ||
+      error.message?.includes("nao foi reconhecido como uma imagem valida");
+
+    const statusCode = error.status || (isClientUploadError ? 400 : 500);
+
+    return res.status(statusCode).json({
+      reply: isClientUploadError ? error.message : "Erro ao processar o arquivo",
       error: error.message
-    })
+    });
+  } finally {
+    // Remove o arquivo temporario salvo pelo Multer para nao acumular lixo em disco.
+    if (req.file?.path) {
+      fs.promises.unlink(req.file.path).catch(() => {});
+    }
   }
-})
+});
 
-// Rota principal do chat
 app.post("/chat", async (req, res) => {
   try {
+    // No chat comum recebemos apenas texto e historico da conversa.
     const { provider, message, history = [] } = req.body;
 
-    // Log de entrada para debug
     console.log("Provider recebido:", provider);
     console.log("Message recebida:", message);
     console.log("History recebida:", history);
 
-    // Validação básica
     if (!provider || !message) {
       return res.status(400).json({
-        reply: "Dados inválidos. provider e message são obrigatórios."
+        reply: "Dados invalidos. provider e message sao obrigatorios."
       });
     }
 
-    // Cria a mensagem de sistema
     const systemPrompt = {
       role: "system",
       content: getSystemPrompt()
     };
 
-    // Junta o prompt do sistema com o histórico
-    const messages = [systemPrompt, ...history];
+    // O front normalmente envia o historico ja com a mensagem atual.
+    // Mesmo assim, tratamos os dois cenarios:
+    // 1) history ja contem a mensagem atual do usuario
+    // 2) history vem vazio e a mensagem atual chega apenas em "message"
+    const normalizedHistory = normalizeHistory(history);
+    const normalizedMessage = String(message || "").trim();
+    const lastHistoryItem = normalizedHistory[normalizedHistory.length - 1];
+    const shouldAppendMessage =
+      !!normalizedMessage &&
+      !(
+        lastHistoryItem?.role === "user" &&
+        lastHistoryItem?.content?.trim() === normalizedMessage
+      );
+
+    const messages = shouldAppendMessage
+      ? [...normalizedHistory, { role: "user", content: normalizedMessage }]
+      : normalizedHistory;
+
+    // O prompt de sistema entra sempre como primeira instrução.
+    messages.unshift(systemPrompt);
 
     console.log("Messages montadas:", messages);
 
@@ -162,6 +214,7 @@ app.post("/chat", async (req, res) => {
       try {
         reply = await sendToOpenAI(messages);
       } catch (error) {
+        // Fallback para Gemini caso OpenAI esteja indisponivel ou retorne erro.
         console.log("OpenAI falhou, usando Gemini...");
         console.error("Erro OpenAI:", error.message);
 
@@ -179,6 +232,13 @@ app.post("/chat", async (req, res) => {
   } catch (error) {
     console.error("Erro no /chat:", error);
 
+    if (error.status === 429) {
+      return res.status(429).json({
+        reply: error.message,
+        error: error.message
+      });
+    }
+
     return res.status(500).json({
       reply: "Erro ao consultar a IA.",
       error: error.message
@@ -186,10 +246,20 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-// Porta do servidor
+app.use((error, req, res, next) => {
+  // Trata erros do Multer fora do try/catch da rota, como arquivo acima do limite.
+  if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+    return res.status(400).json({
+      reply: "O arquivo ultrapassa o limite de 15 MB."
+    });
+  }
+
+  next(error);
+});
+
 const PORT = process.env.PORT || 3000;
 
-// Sobe o servidor
+// Inicializa o servidor HTTP do backend.
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });

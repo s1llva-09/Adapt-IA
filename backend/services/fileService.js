@@ -1,10 +1,9 @@
-//Multer é um middleware do Node.js (Express) usado para:
-    //receber arquivos enviados pelo front-end
+// Multer recebe os arquivos enviados pelo front-end.
 
-const fs = require("fs") //um modulo para conseguir ler arquivos, escrever, apagar etc
-const path = require("path") //ajuda a trabalhar com caminhos de arquivos Exemplo: pegar pfd de arquivo .pdf
-const mammoth = require("mammoth") //biblioca para extrair o texto de arquivos txt(word) em geral
-const pdfParse = require("pdf-Parse") //biblioteca para extrair textos de arquivos pdf
+const fs = require("fs");
+const path = require("path");
+const mammoth = require("mammoth");
+const pdfParseModule = require("pdf-parse");
 
 // Lista de arquivos que podem ser lidos como texto diretamente
 const TEXT_EXTENSIONS = [
@@ -27,54 +26,68 @@ const TEXT_EXTENSIONS = [
 // Lista de imagens suportadas
 const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
 
-// Verifica se o arquivo é imagem
+// Verifica se o arquivo e imagem
 function isImageFile(file) {
-  const ext = path.extname(file.originalname).toLowerCase();
-  return IMAGE_EXTENSIONS.includes(ext);
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  return file.mimetype?.startsWith("image/") || IMAGE_EXTENSIONS.includes(ext);
 }
 
-//função para ler o arquivo recebido
+async function extractPdfText(filePath) {
+  const buffer = fs.readFileSync(filePath);
+
+  // Compatibilidade com pdf-parse antigo (funcao direta)
+  if (typeof pdfParseModule === "function") {
+    const result = await pdfParseModule(buffer);
+    return result?.text || "";
+  }
+
+  // Compatibilidade com pdf-parse novo (classe PDFParse)
+  if (typeof pdfParseModule?.PDFParse === "function") {
+    const parser = new pdfParseModule.PDFParse({ data: buffer });
+
+    try {
+      const result = await parser.getText();
+      return result?.text || "";
+    } finally {
+      if (typeof parser.destroy === "function") {
+        await parser.destroy();
+      }
+    }
+  }
+
+  throw new Error("Versao de pdf-parse sem parser compativel para extracao de texto.");
+}
+
+// Funcao para ler o arquivo recebido
 async function extractFileContent(file) {
-    //pega a extensão do arquivo , ex: document.pdf vira .pdf
+  const ext = path.extname(file.originalname).toLowerCase();
 
-                                               //trata o PDF e pdf como a mesma coisa 
-    const ext = path.extname(file.originalname).toLowerCase()
+  if (TEXT_EXTENSIONS.includes(ext)) {
+    return fs.readFileSync(file.path, "utf8");
+  }
 
-    //lista de arquivos que podem ser lidos direto como texto
-    // Isso funciona para código, markdown, JSON, CSV, etc.
-    if(TEXT_EXTENSIONS.includes(ext)) {
-        //Lê o conteúdo do arquivo como texto UTF-8.
-        //file.path é onde o multer salvou o arquivo
-        return fs.readFileSync(file.path, "utf8");
-    }
-
-    //se for arquivo .docx, usa o mammoth
-    if (ext == ".docx") {
-    // extractRawText extrai apenas o texto bruto do documento.
-    // Não mantém estilos, imagens ou formatação avançada.
-
+  if (ext === ".docx") {
     const result = await mammoth.extractRawText({
-        path: file.path
-    })
-    // result.value contém o texto extraído do documento.
-    return result.value
+      path: file.path
+    });
+
+    return result.value;
+  }
+
+  if (ext === ".pdf") {
+    const pdfText = await extractPdfText(file.path);
+
+    if (!pdfText?.trim()) {
+      return "O PDF foi recebido, mas nao possui texto extraivel. Pode ser um PDF escaneado em imagem. Nesse caso, envie em DOCX/TXT ou use OCR antes do envio.";
     }
 
-    //se o arquivo for pdf, usa o pdf-parse
-    if (ext == ".pdf") {
-        //primeiro o pdf é lido com buffer
-        const buffer = fs.readFileSync(file.path)
+    return pdfText;
+  }
 
-        //depois o bufferr passa para o pdf-parse
-        const result = await pdfParse(buffer)
-
-        //result.text mostra o texto extraido do pdf
-        return result.text
-    }
-
-    return `Arquivo recebido: ${file.originalname} , mas esse tipo ainda nao tem extração configurada`
+  return `Arquivo recebido: ${file.originalname}, mas esse tipo ainda nao tem extracao configurada`;
 }
 
 module.exports = {
-    extractFileContent, isImageFile
-}
+  extractFileContent,
+  isImageFile
+};

@@ -1,0 +1,37 @@
+◇ injected env (7) from backend\.env // tip: ◈ encrypted .env [www.dotenvx.com]
+OPENAI: OK
+GEMINI: OK
+Servidor rodando em http://localhost:3000
+[http] GET /health 304 3ms
+[http] GET /health 304 1ms
+[http] GET /health 200 1ms
+Provider recebido: gemini
+Message recebida: responda em uma frase: o que e cobertura de testes?
+History recebida: []
+Messages montadas: [
+  {
+    role: 'system',
+    content: 'Voce e um assistente inteligente e adaptavel.\n' +
+      '\n' +
+      'Regras:\n' +
+      '- Entenda o contexto pela conversa.\n' +
+      '- Se o usuario falar de programacao, responda como especialista.\n' +
+      '- Se mudar de assunto, adapte-se ao novo contexto.\n' +
+      '- Responda sempre no idioma do usuario.\n' +
+      '- Seja claro, natural e util.'
+  },
+  {
+    role: 'user',
+    content: 'responda em uma frase: o que e cobertura de testes?'
+  }
+]
+[http] GET /health 304 1ms
+[http] POST /upload 200 1376ms
+[http] POST /chat 200 1311ms
+[http] GET /health 304 0ms
+[http] GET /health 304 0ms
+[http] GET /health 304 1ms
+[http] GET /health 304 0ms
+Gemini falhou no modelo gemini-2.5-flash (MODEL_TIMEOUT), tentando proximo...
+[http] GET /health 304 1ms
+[http] GET /health 304 0ms

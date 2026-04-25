@@ -1,50 +1,138 @@
-//Serviço para analise real de imagens
+const {
+  GoogleGenAI,
+  createPartFromUri,
+  createUserContent
+} = require("@google/genai");
+const mime = require("mime-types");
+const { createUserFacingGeminiError } = require("./geminiErrorService");
 
-//importar cliente gemini
-const { GoogleGenAI } = require("@google/genai")
-
-//le o arquivo da image em binare
-const fs = require("fs")
-
-// Detecta o tipo MIME do arquivo
-const mime = require("mime-types")
-
-// Cria o cliente Gemini usando a chave do .env
 const client = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY
-})
+  apiKey: process.env.GEMINI_API_KEY
+});
 
-//analisa uma imagem usando Gemini multimodal
-async function analyzeImageWithGemini(file, message) {
-    //descobre o tipo da imagem(png, jpeg, etc)
-    const mimeType = mime.lookup(file.originalname || file.mimeType || "image/png")
+const IMAGE_MODEL_TIMEOUT_MS = Number(process.env.GEMINI_IMAGE_TIMEOUT_MS) || 35000;
 
-    //lê a image e converte para base64
-    const imageBase64 = fs.readFileSync(file.path).toString("base64")
+const DEFAULT_IMAGE_MODELS = [
+  "gemini-3.1-flash-lite-preview",
+  "gemini-flash-lite-latest",
+  "gemini-flash-latest",
+  "gemini-2.5-flash"
+];
 
-    //chama o gemini com o texto + image
-    const response = await client.models.generateContent({
-        model: "gemini-2.5-flash-lite",
-        contents: [
-            {
-                role: "user",
-                parts: [
-                    {
-                        text:
-                        message ||
-                        "Analise esta imagem. Descreva oq aparece nela e responsa em português"
-                    },
-                    {
-                        inlineData: {
-                            mimeType,
-                            data: imageBase64
-                        }
-                    }
-                ]
-            }
-        ]
-    })
+function getModelCandidates(envVarName, defaults) {
+  const envValue = process.env[envVarName];
 
-    return response.text || "Não consegui analisar a imagem"
+  if (!envValue) return defaults;
+
+  const parsed = envValue
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return parsed.length ? parsed : defaults;
 }
-module.exports = { analyzeImageWithGemini }
+
+async function analyzeWithModel(model, uploadedFile, mimeType, message) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const timeoutError = new Error(
+        `Tempo limite ao analisar imagem com o modelo ${model}.`
+      );
+      timeoutError.code = "MODEL_TIMEOUT";
+      timeoutError.status = 504;
+      timeoutError.model = model;
+      reject(timeoutError);
+    }, IMAGE_MODEL_TIMEOUT_MS);
+
+    client.models
+      .generateContent({
+        model,
+        contents: createUserContent([
+          createPartFromUri(uploadedFile.uri, uploadedFile.mimeType || mimeType),
+          message || "Analise esta imagem. Descreva o que aparece nela e responda em portugues."
+        ])
+      })
+      .then((response) => {
+        clearTimeout(timer);
+        resolve(response);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+async function analyzeImageWithGemini(file, message) {
+  const mimeType =
+    file.mimetype || mime.lookup(file.originalname || "") || "application/octet-stream";
+
+  if (!String(mimeType).startsWith("image/")) {
+    throw new Error("O arquivo enviado nao foi reconhecido como uma imagem valida.");
+  }
+
+  let uploadedFile;
+
+  try {
+    uploadedFile = await client.files.upload({
+      file: file.path,
+      config: { mimeType }
+    });
+
+    const candidates = getModelCandidates("GEMINI_IMAGE_MODELS", DEFAULT_IMAGE_MODELS);
+    let lastError;
+
+    for (const model of candidates) {
+      try {
+        const response = await analyzeWithModel(
+          model,
+          uploadedFile,
+          mimeType,
+          message
+        );
+
+        return response.text || "Nao consegui analisar a imagem";
+      } catch (error) {
+        lastError = error;
+        console.log(
+          `Gemini falhou na imagem com o modelo ${model} (${error.code || error.status || "erro"}), tentando proximo...`
+        );
+      }
+    }
+
+    const errorText = lastError?.message || "";
+
+    if (
+      errorText.includes("Unable to process input image") ||
+      errorText.includes('"status":"INVALID_ARGUMENT"') ||
+      errorText.includes('"status":"INTERNAL"')
+    ) {
+      throw new Error(
+        "Nao foi possivel analisar essa imagem no momento. Verifique se o arquivo abre normalmente, use PNG, JPG, JPEG ou WEBP e, se preciso, tente uma imagem menor."
+      );
+    }
+
+    if (lastError?.code === "MODEL_TIMEOUT") {
+      const timeoutError = new Error(
+        "A analise da imagem demorou alem do esperado. Tente novamente ou use uma imagem menor."
+      );
+      timeoutError.status = 504;
+      throw timeoutError;
+    }
+
+    throw createUserFacingGeminiError(lastError, "image");
+  } finally {
+    if (uploadedFile?.name) {
+      try {
+        await client.files.delete({ name: uploadedFile.name });
+      } catch (cleanupError) {
+        console.error(
+          "Falha ao remover arquivo temporario do Gemini:",
+          cleanupError.message
+        );
+      }
+    }
+  }
+}
+
+module.exports = { analyzeImageWithGemini };
