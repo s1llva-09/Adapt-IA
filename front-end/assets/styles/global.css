@@ -676,12 +676,7 @@ body.sidebar-collapsed .chat-sidebar {
 }
 
 .file-name-preview {
-  color: var(--text-soft);
-  font-size: 0.85rem;
-  max-width: 180px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  display: none;
 }
 
 /*================== PREVIEW FILE ========================*/
@@ -689,13 +684,17 @@ body.sidebar-collapsed .chat-sidebar {
   /* Preview do arquivo ainda no composer, antes do envio */
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--text-soft);
-  font-size: 0.85rem;
-  max-width: 220px;
+  justify-content: flex-start;
+  gap: 10px;
+  color: var(--text);
+  font-size: 0.88rem;
+  width: auto;
+  max-width: 240px;
+  min-width: 0;
+  min-height: 52px;
   overflow: hidden;
-  border-radius: 14px;
-  flex-shrink: 0;
+  border-radius: 16px;
+  flex: 0 1 240px;
 }
 
 .file-preview:empty {
@@ -704,22 +703,31 @@ body.sidebar-collapsed .chat-sidebar {
 
 .file-preview:not(:empty) {
   /* So ganha moldura quando realmente existe um arquivo selecionado */
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.92);
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.96);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
 .file-preview img {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--border);
 }
 
 .file-preview span {
-  white-space: nowrap;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.2;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  font-weight: 600;
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
 

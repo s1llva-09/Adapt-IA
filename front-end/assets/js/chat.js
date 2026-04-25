@@ -416,7 +416,7 @@ function initializeChat() {
       const file = fileInput.files[0]; // cria uma lista para os arquivos e pega o primeiro deles ([0])
 
       if (fileNamePreview) { // verifica se o elemento do nome do arquivo existe
-        fileNamePreview.textContent = file ? file.name : ""; // se o arquivo existir mostra o nome dele, se não limpa o texto
+        fileNamePreview.textContent = ""; // o nome ja aparece dentro do card de preview
       }
 
       if (filePreview) { // verifica se o elemento de preview existe
