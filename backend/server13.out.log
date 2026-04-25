@@ -35,3 +35,4 @@ Messages montadas: [
 Gemini falhou no modelo gemini-2.5-flash (MODEL_TIMEOUT), tentando proximo...
 [http] GET /health 304 1ms
 [http] GET /health 304 0ms
+[http] GET /health 304 1ms
