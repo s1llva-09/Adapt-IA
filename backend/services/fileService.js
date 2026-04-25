@@ -1,80 +1,139 @@
-//Multer é um middleware do Node.js (Express) usado para:
-    //receber arquivos enviados pelo front-end
+// ===============================
+// IMPORTAÇÕES
+// ===============================
 
-const fs = require("fs") //um modulo para conseguir ler arquivos, escrever, apagar etc
-const path = require("path") //ajuda a trabalhar com caminhos de arquivos Exemplo: pegar pfd de arquivo .pdf
-const mammoth = require("mammoth") //biblioca para extrair o texto de arquivos txt(word) em geral
-const pdfParse = require("pdf-Parse") //biblioteca para extrair textos de arquivos pdf
+// fs → usado para ler arquivos do sistema
+const fs = require("fs");
 
-// Lista de arquivos que podem ser lidos como texto diretamente
-const TEXT_EXTENSIONS = [
-  ".txt",
-  ".js",
-  ".html",
-  ".css",
-  ".json",
-  ".md",
-  ".csv",
-  ".xml",
-  ".sql",
-  ".java",
-  ".py",
-  ".php",
-  ".c",
-  ".cpp"
-];
+// path → ajuda a trabalhar com caminhos de arquivos
+const path = require("path");
 
-// Lista de imagens suportadas
-const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
+// pdf-parse → biblioteca que tenta extrair texto de PDFs
+const pdfParse = require("pdf-parse");
 
-// Verifica se o arquivo é imagem
-function isImageFile(file) {
-  const ext = path.extname(file.originalname).toLowerCase();
-  return IMAGE_EXTENSIONS.includes(ext);
-}
+// child_process → permite executar comandos do sistema (ex: converter PDF em imagem)
+const { exec } = require("child_process");
 
-//função para ler o arquivo recebido
+
+// ===============================
+// FUNÇÃO PRINCIPAL
+// ===============================
+
+// Essa função recebe um arquivo enviado pelo usuário
+// e decide COMO ele deve ser interpretado:
+// - texto
+// - imagem
+// - PDF (com ou sem texto)
 async function extractFileContent(file) {
-    //pega a extensão do arquivo , ex: document.pdf vira .pdf
 
-                                               //trata o PDF e pdf como a mesma coisa 
-    const ext = path.extname(file.originalname).toLowerCase()
+  // Caminho físico do arquivo no servidor
+  const filePath = file.path;
 
-    //lista de arquivos que podem ser lidos direto como texto
-    // Isso funciona para código, markdown, JSON, CSV, etc.
-    if(TEXT_EXTENSIONS.includes(ext)) {
-        //Lê o conteúdo do arquivo como texto UTF-8.
-        //file.path é onde o multer salvou o arquivo
-        return fs.readFileSync(file.path, "utf8");
+  // Tipo do arquivo (ex: application/pdf, image/png)
+  const mimeType = file.mimetype;
+
+  console.log("Tipo do arquivo:", mimeType);
+
+  // ===============================
+  // 📄 TRATAMENTO DE PDF
+  // ===============================
+
+  if (mimeType === "application/pdf") {
+
+    // Lê o arquivo PDF como binário (buffer)
+    const buffer = fs.readFileSync(filePath);
+
+    // Tenta extrair texto do PDF
+    const data = await pdfParse(buffer);
+
+    // Remove espaços desnecessários
+    const text = data.text.trim();
+
+    console.log("Texto extraído do PDF:", text.length);
+
+    // 🔥 CASO 1: PDF TEM TEXTO REAL
+    // Ex: currículo feito no Word
+    if (text.length > 50) {
+
+      console.log("PDF contém texto → enviando como texto");
+
+      return {
+        type: "text", // indica que é texto
+        content: text // conteúdo que será enviado para IA
+      };
     }
 
-    //se for arquivo .docx, usa o mammoth
-    if (ext == ".docx") {
-    // extractRawText extrai apenas o texto bruto do documento.
-    // Não mantém estilos, imagens ou formatação avançada.
+    // 🔥 CASO 2: PDF NÃO TEM TEXTO
+    // Ex: logo, scan, print
+    console.log("PDF sem texto → convertendo para imagem...");
 
-    const result = await mammoth.extractRawText({
-        path: file.path
-    })
-    // result.value contém o texto extraído do documento.
-    return result.value
-    }
+    // Define onde salvar a imagem gerada
+    const outputDir = path.join(__dirname, "../uploads");
 
-    //se o arquivo for pdf, usa o pdf-parse
-    if (ext == ".pdf") {
-        //primeiro o pdf é lido com buffer
-        const buffer = fs.readFileSync(file.path)
+    // Converte PDF em imagem usando comando externo (Poppler)
+    return new Promise((resolve, reject) => {
 
-        //depois o bufferr passa para o pdf-parse
-        const result = await pdfParse(buffer)
+      exec(
+        // Converte primeira página do PDF em PNG
+        `pdftoppm -png "${filePath}" "${outputDir}/output"`,
+        (err) => {
 
-        //result.text mostra o texto extraido do pdf
-        return result.text
-    }
+          if (err) {
+            console.error("Erro ao converter PDF:", err);
+            reject(err);
+            return;
+          }
 
-    return `Arquivo recebido: ${file.originalname} , mas esse tipo ainda nao tem extração configurada`
+          // Caminho da imagem gerada (primeira página)
+          const imagePath = path.join(outputDir, "output-1.png");
+
+          console.log("PDF convertido em imagem:", imagePath);
+
+          // Retorna como imagem (para IA de visão)
+          resolve({
+            type: "image",
+            content: imagePath
+          });
+        }
+      );
+    });
+  }
+
+  // ===============================
+  // 🖼️ TRATAMENTO DE IMAGEM
+  // ===============================
+
+  if (mimeType.startsWith("image/")) {
+
+    console.log("Arquivo é imagem → enviando para IA de visão");
+
+    return {
+      type: "image",
+      content: filePath
+    };
+  }
+
+  // ===============================
+  // 📝 TRATAMENTO DE TEXTO / CÓDIGO
+  // ===============================
+
+  console.log("Arquivo é texto/código → lendo conteúdo");
+
+  // Lê o arquivo como texto
+  const text = fs.readFileSync(filePath, "utf-8");
+
+  return {
+    type: "text",
+    content: text
+  };
 }
 
+
+// ===============================
+// EXPORTAÇÃO
+// ===============================
+
+// Exporta a função para ser usada no server.js
 module.exports = {
-    extractFileContent, isImageFile
-}
+  extractFileContent
+};

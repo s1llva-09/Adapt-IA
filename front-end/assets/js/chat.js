@@ -1,76 +1,107 @@
+// Importa as funções que conversam com o backend.
 import { sendMessage, uploadFile } from "./api.js";
 
-// Retorna a IA escolhida
+// Retorna a IA escolhida salva no navegador.
 function getProvider() {
   return localStorage.getItem("provider");
 }
 
-// Converte o valor salvo em texto bonito
+// Converte o valor técnico em nome bonito para exibir na tela.
 function getProviderLabel(value) {
   if (value === "openai") return "OpenAI";
   if (value === "gemini") return "Gemini";
   return "-";
 }
 
-// Pega o histórico salvo
+// Busca o histórico salvo no localStorage.
 function getChatHistory() {
-  return JSON.parse(localStorage.getItem("chatHistory")) || [];
+  try {
+    return JSON.parse(localStorage.getItem("chatHistory")) || [];
+  } catch (error) {
+    console.error("Erro ao ler o histórico:", error);
+    return [];
+  }
 }
 
-// Salva o histórico
+// Salva o histórico no localStorage.
 function saveChatHistory(history) {
-  localStorage.setItem("chatHistory", JSON.stringify(history));
+  try {
+    localStorage.setItem("chatHistory", JSON.stringify(history));
+  } catch (error) {
+    console.error("Erro ao salvar histórico:", error);
+
+    // Caso o histórico fique pesado por causa de preview de imagem,
+    // salva uma versão mais leve.
+    const compactHistory = history.map((message) => ({
+      role: message.role,
+      content: message.content,
+      attachment: message.attachment
+        ? {
+            name: message.attachment.name,
+            type: message.attachment.type
+          }
+        : null
+    }));
+
+    localStorage.setItem("chatHistory", JSON.stringify(compactHistory));
+  }
 }
 
-// Adiciona uma mensagem nova ao histórico
-function addMessage(role, content) {
+// Adiciona uma nova mensagem ao histórico.
+function addMessage(role, content, attachment = null) {
   const history = getChatHistory();
-  history.push({ role, content });
+  history.push({ role, content, attachment });
   saveChatHistory(history);
 }
 
-// Escapa HTML para evitar renderização perigosa
+// Retorna apenas role/content para enviar ao backend.
+// Isso evita mandar preview base64 da imagem para a IA.
+function getConversationHistory() {
+  return getChatHistory().map(({ role, content }) => ({ role, content }));
+}
+
+// Escapa HTML para impedir que texto vire HTML executável.
 function escapeHtml(text) {
-  return text
+  return String(text)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 }
 
-// Faz uma formatação simples de markdown
+// Formata um markdown simples nas respostas.
 function formatMarkdown(text) {
   let formatted = escapeHtml(text);
 
-  // bloco de código ``` ```
+  // Bloco de código com ```
   formatted = formatted.replace(
     /```([\s\S]*?)```/g,
     '<pre class="code-block"><code>$1</code></pre>'
   );
 
-  // código inline ` `
+  // Código inline com `
   formatted = formatted.replace(
     /`([^`]+)`/g,
     '<code class="inline-code">$1</code>'
   );
 
-  // negrito ** **
+  // Negrito com **texto**
   formatted = formatted.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
-  // itálico * *
+  // Itálico com *texto*
   formatted = formatted.replace(/\*(.*?)\*/g, "<em>$1</em>");
 
-  // quebra de linha
+  // Quebras de linha
   formatted = formatted.replace(/\n/g, "<br>");
 
   return formatted;
 }
 
-// Letra do avatar
+// Define a letra do avatar.
 function getAvatarLetter(role) {
   return role === "user" ? "U" : "IA";
 }
 
-// Copia texto para a área de transferência
+// Copia texto da resposta da IA.
 async function copyToClipboard(text, button) {
   try {
     await navigator.clipboard.writeText(text);
@@ -91,9 +122,122 @@ async function copyToClipboard(text, button) {
   }
 }
 
-// Cria uma mensagem visualmente
-function createMessageElement(role, content, useTyping = false) {
+// Cria uma miniatura leve de imagem para exibir no chat.
+async function createImageThumbnail(file) {
+  // Lê a imagem como base64.
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+    reader.readAsDataURL(file);
+  });
+
+  // Redimensiona a imagem para não pesar no localStorage.
+  return new Promise((resolve) => {
+    const image = new Image();
+
+    image.onload = () => {
+      const maxSide = 160;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        resolve(dataUrl);
+        return;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      context.drawImage(image, 0, 0, width, height);
+
+      resolve(
+        canvas.toDataURL(
+          file.type === "image/png" ? "image/png" : "image/jpeg",
+          0.82
+        )
+      );
+    };
+
+    image.onerror = () => resolve(dataUrl);
+    image.src = dataUrl;
+  });
+}
+
+// Monta o objeto do anexo para mostrar no chat.
+async function buildAttachment(file) {
+  if (!file) return null;
+
+  const attachment = {
+    name: file.name,
+    type: file.type || "application/octet-stream"
+  };
+
+  // Se for imagem, cria preview.
+  if (attachment.type.startsWith("image/")) {
+    try {
+      attachment.previewUrl = await createImageThumbnail(file);
+    } catch (error) {
+      console.error("Erro ao gerar miniatura:", error);
+    }
+  }
+
+  return attachment;
+}
+
+// Cria o card visual do arquivo/imagem enviado.
+function createAttachmentElement(role, attachment) {
+  const card = document.createElement("div");
+
+  card.classList.add(
+    "message-attachment",
+    role === "user" ? "message-attachment-user" : "message-attachment-assistant"
+  );
+
+  const isImage = attachment?.type?.startsWith("image/");
+
+  // Se for imagem e tiver preview, mostra miniatura.
+  if (isImage && attachment.previewUrl) {
+    const image = document.createElement("img");
+    image.classList.add("message-attachment-thumb");
+    image.src = attachment.previewUrl;
+    image.alt = attachment.name || "Imagem enviada";
+    card.appendChild(image);
+  } else {
+    // Se não for imagem, mostra ícone genérico.
+    const icon = document.createElement("div");
+    icon.classList.add("message-attachment-icon");
+    icon.textContent = isImage ? "IMG" : "ARQ";
+    card.appendChild(icon);
+  }
+
+  const meta = document.createElement("div");
+  meta.classList.add("message-attachment-meta");
+
+  const title = document.createElement("span");
+  title.classList.add("message-attachment-title");
+  title.textContent = isImage ? "Imagem enviada" : "Arquivo enviado";
+
+  const name = document.createElement("span");
+  name.classList.add("message-attachment-name");
+  name.textContent = attachment?.name || "Anexo";
+
+  meta.appendChild(title);
+  meta.appendChild(name);
+  card.appendChild(meta);
+
+  return card;
+}
+
+// Cria visualmente uma mensagem no chat.
+function createMessageElement(role, content = "", useTyping = false, attachment = null) {
   const wrapper = document.createElement("div");
+
   wrapper.classList.add(
     "message-row",
     role === "user" ? "row-user" : "row-assistant"
@@ -119,10 +263,18 @@ function createMessageElement(role, content, useTyping = false) {
     bubble.innerHTML = formatMarkdown(content);
   }
 
-  messageBox.appendChild(bubble);
+  // Se tiver anexo, coloca o card do anexo antes da bolha.
+  if (attachment) {
+    messageBox.appendChild(createAttachmentElement(role, attachment));
+  }
 
-  // Botão copiar só para mensagens da IA e não para typing
-  if (role === "assistant" && !useTyping) {
+  // Só adiciona bolha se tiver conteúdo ou se for typing.
+  if (useTyping || content || !attachment) {
+    messageBox.appendChild(bubble);
+  }
+
+  // Botão copiar apenas para respostas da IA.
+  if (role === "assistant" && !useTyping && content) {
     const actions = document.createElement("div");
     actions.classList.add("message-actions");
 
@@ -150,7 +302,7 @@ function createMessageElement(role, content, useTyping = false) {
   return { wrapper, bubble };
 }
 
-// Renderiza mensagens na tela
+// Renderiza todas as mensagens na tela.
 function renderMessages() {
   const container = document.getElementById("chatMessages");
   if (!container) return;
@@ -160,14 +312,20 @@ function renderMessages() {
   const history = getChatHistory();
 
   history.forEach((msg) => {
-    const { wrapper } = createMessageElement(msg.role, msg.content);
+    const { wrapper } = createMessageElement(
+      msg.role,
+      msg.content || "",
+      false,
+      msg.attachment || null
+    );
+
     container.appendChild(wrapper);
   });
 
   container.scrollTop = container.scrollHeight;
 }
 
-// Mostra digitando...
+// Mostra "A IA está digitando..."
 function showTyping() {
   const container = document.getElementById("chatMessages");
   if (!container) return;
@@ -179,17 +337,18 @@ function showTyping() {
   );
 
   wrapper.id = "typingIndicator";
+
   container.appendChild(wrapper);
   container.scrollTop = container.scrollHeight;
 }
 
-// Remove digitando...
+// Remove o indicador de digitação.
 function removeTyping() {
   const typing = document.getElementById("typingIndicator");
   if (typing) typing.remove();
 }
 
-// Limpa o chat
+// Limpa a conversa.
 function clearChat() {
   const initialHistory = [
     {
@@ -202,12 +361,12 @@ function clearChat() {
   renderMessages();
 }
 
-// Volta para tela inicial
+// Volta para a tela inicial.
 function goBack() {
   window.location.href = "index.html";
 }
 
-// Abre e fecha sidebar
+// Abre e fecha a sidebar.
 function toggleSidebar() {
   document.body.classList.toggle("sidebar-collapsed");
 
@@ -215,11 +374,12 @@ function toggleSidebar() {
   localStorage.setItem("sidebarState", isCollapsed ? "closed" : "open");
 }
 
-// Configura textarea
+// Configura o textarea.
 function setupTextarea() {
   const textarea = document.getElementById("messageInput");
   if (!textarea) return;
 
+  // Ajusta a altura automaticamente.
   const autoResize = () => {
     textarea.style.height = "auto";
     textarea.style.height = `${textarea.scrollHeight}px`;
@@ -227,10 +387,10 @@ function setupTextarea() {
 
   textarea.addEventListener("input", autoResize);
 
+  // Enter envia, Shift+Enter quebra linha.
   textarea.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-
       handleSubmit(event);
     }
   });
@@ -238,7 +398,7 @@ function setupTextarea() {
   autoResize();
 }
 
-// Efeito digitando
+// Efeito de digitação para mensagens normais.
 async function typeMessage(content) {
   const container = document.getElementById("chatMessages");
   if (!container) return;
@@ -252,125 +412,111 @@ async function typeMessage(content) {
     partial += content[i];
     bubble.innerHTML = formatMarkdown(partial);
     container.scrollTop = container.scrollHeight;
+
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }
 
-// Função chamada quando o formulário é enviado (clicar em "Enviar" ou Enter)
+// Função chamada ao clicar em enviar ou apertar Enter.
 async function handleSubmit(event) {
-  // Impede o comportamento padrão do formulário (recarregar a página)
+  // Evita reload da página.
   if (event) event.preventDefault();
 
-  // Pega o input de texto
   const input = document.getElementById("messageInput");
-
-  // Pega o input de arquivo (📎)
   const fileInput = document.getElementById("fileInput");
-
-  // Pega o arquivo selecionado (se existir)
-  // ?. evita erro caso fileInput seja null
   const file = fileInput?.files[0];
-
-  // Debug: mostra no console o arquivo selecionado
-  console.log("Arquivo selecionado:", file);
-
-  // Pega qual IA foi selecionada (OpenAI ou Gemini)
   const provider = getProvider();
 
-  // Se não tiver input ou provider, não continua
+  console.log("Arquivo selecionado:", file);
+
   if (!input || !provider) return;
 
-  // Pega a mensagem digitada e remove espaços extras
   const message = input.value.trim();
 
-  // Se não tiver mensagem E nem arquivo, não envia nada
   if (!message && !file) return;
 
-  // Adiciona mensagem do usuário no histórico
-  // Se não tiver texto, mostra que enviou arquivo
-  addMessage("user", message || `Arquivo enviado: ${file.name}`);
+  // Histórico antes da mensagem atual.
+  const historyBeforeSubmit = getConversationHistory();
 
-  // Atualiza o chat na tela
+  // Monta anexo visual, se tiver arquivo.
+  const attachment = file ? await buildAttachment(file) : null;
+
+  // Mostra a mensagem do usuário no chat.
+  addMessage(
+    "user",
+    message || `Arquivo enviado: ${file.name}`,
+    attachment
+  );
+
   renderMessages();
 
-  // Limpa o campo de texto
+  // Limpa o campo de texto.
   input.value = "";
-
-  // Reseta altura do textarea (auto resize)
   input.style.height = "auto";
 
-  // Mostra "IA está digitando..."
   showTyping();
 
   try {
-    // Se tiver arquivo → usa uploadFile
-    // Senão → usa sendMessage normal
+    // Se tiver arquivo, envia para /upload.
+    // Se não tiver arquivo, envia para /chat.
     const data = file
       ? await uploadFile(
-          provider, // qual IA usar
-          message || "Analise este arquivo.", // mensagem padrão se não tiver texto
-          getChatHistory(), // histórico da conversa
-          file // arquivo enviado
+          provider,
+          message || "Analise este arquivo.",
+          historyBeforeSubmit,
+          file
         )
       : await sendMessage(
           provider,
           message,
-          getChatHistory()
+          [...historyBeforeSubmit, { role: "user", content: message }]
         );
 
-    // Limpa o input de arquivo (remove o arquivo selecionado)
+    console.log("Resposta recebida do backend:", data);
+
+    // Limpa arquivo selecionado.
     if (fileInput) fileInput.value = "";
 
-    // Limpa preview visual (imagem ou nome)
+    // Limpa preview.
     const filePreview = document.getElementById("filePreview");
     if (filePreview) filePreview.innerHTML = "";
 
-    // Limpa o nome do arquivo exibido na tela (caso use span separado)
-    const fileNamePreview = document.getElementById("fileNamePreview");
-    if (fileNamePreview) fileNamePreview.textContent = "";
-
-    // Pega a resposta da IA
+    // Pega resposta da IA.
     const reply = data.reply || "Sem resposta da IA.";
 
-    // Remove o "digitando..."
     removeTyping();
 
-    // Renderiza novamente (limpa e atualiza)
-    renderMessages();
-
-    // Mostra resposta com efeito digitando
-    await typeMessage(reply);
-
-    // Salva resposta da IA no histórico
-    addMessage("assistant", reply);
-
-    // Atualiza novamente o chat
-    renderMessages();
-
+    // Para arquivo, mostra direto.
+    // Para texto, usa efeito digitando.
+    if (file) {
+      addMessage("assistant", reply);
+      renderMessages();
+    } else {
+      await typeMessage(reply);
+      addMessage("assistant", reply);
+      renderMessages();
+    }
   } catch (error) {
-    // Se der erro → remove "digitando"
     removeTyping();
 
-    // Mostra mensagem de erro no chat
     addMessage(
       "assistant",
-      "Desculpe, houve um erro ao conectar com o servidor."
+      error.message || "Desculpe, houve um erro ao conectar com o servidor."
     );
 
-    // Atualiza tela
     renderMessages();
 
-    // Mostra erro real no console (debug)
     console.error("erro ao enviar a mensagem:", error);
   }
 }
 
-// Inicializa o chat
+// Inicializa o chat.
 function initializeChat() {
   const provider = getProvider();
   const providerLabel = document.getElementById("providerLabel");
-  const form = document.getElementById("chatForm");
   const sendButton = document.getElementById("sendButton");
+  const fileInput = document.getElementById("fileInput");
+  const filePreview = document.getElementById("filePreview");
 
   if (!provider) {
     window.location.href = "index.html";
@@ -392,6 +538,7 @@ function initializeChat() {
   }
 
   const sidebarState = localStorage.getItem("sidebarState");
+
   if (sidebarState === "closed") {
     document.body.classList.add("sidebar-collapsed");
   }
@@ -399,50 +546,41 @@ function initializeChat() {
   renderMessages();
   setupTextarea();
 
+  // Botão envia via JS.
+  // Não usamos submit nativo do form para evitar reload.
   if (sendButton) {
     sendButton.addEventListener("click", handleSubmit);
   }
 
-  if (form) {
-    form.addEventListener("submit", handleSubmit);
-  }
+  // Preview do arquivo selecionado.
+  if (fileInput && filePreview) {
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
 
-  const fileInput = document.getElementById("fileInput"); // busca o elemento fileInput
-  const fileNamePreview = document.getElementById("fileNamePreview"); // busca o elemento onde irá mostrar o nome do arquivo
-  const filePreview = document.getElementById("filePreview"); // busca o elemento onde irá mostrar o preview do arquivo ou imagem
+      filePreview.innerHTML = "";
 
-  if (fileInput) { // verifica se o input de arquivo existe
-    fileInput.addEventListener("change", () => { // aciona o evento quando é importado um arquivo ou quando troca etc.
-      const file = fileInput.files[0]; // cria uma lista para os arquivos e pega o primeiro deles ([0])
+      if (!file) return;
 
-      if (fileNamePreview) { // verifica se o elemento do nome do arquivo existe
-        fileNamePreview.textContent = ""; // o nome ja aparece dentro do card de preview
-      }
+      if (file.type.startsWith("image/")) {
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(file);
 
-      if (filePreview) { // verifica se o elemento de preview existe
-        filePreview.innerHTML = ""; // limpa o preview anterior antes de mostrar o novo arquivo
+        const span = document.createElement("span");
+        span.textContent = file.name;
 
-        if (!file) return; // se não tiver arquivo selecionado, para a função
-
-        if (file.type.startsWith("image/")) { // verifica se o arquivo selecionado é uma imagem
-          const img = document.createElement("img"); // cria uma tag img para mostrar a imagem na tela
-          img.src = URL.createObjectURL(file); // cria uma URL temporária para exibir a imagem selecionada
-
-          const span = document.createElement("span"); // cria um span para mostrar o nome do arquivo
-          span.textContent = file.name; // coloca o nome do arquivo dentro do span
-
-          filePreview.appendChild(img); // adiciona a imagem dentro do preview
-          filePreview.appendChild(span); // adiciona o nome do arquivo dentro do preview
-        } else {
-          filePreview.innerHTML = `<span>${file.name}</span>`; // se não for imagem, mostra apenas o nome do arquivo
-        }
+        filePreview.appendChild(img);
+        filePreview.appendChild(span);
+      } else {
+        filePreview.innerHTML = `<span>${file.name}</span>`;
       }
     });
   }
 }
 
+// Expõe funções usadas no HTML.
 window.clearChat = clearChat;
 window.goBack = goBack;
 window.toggleSidebar = toggleSidebar;
 
+// Inicia tudo quando o HTML carregar.
 document.addEventListener("DOMContentLoaded", initializeChat);

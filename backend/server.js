@@ -22,6 +22,8 @@ const { sendToGemini } = require("./services/geminiService");
 const { extractFileContent, isImageFile } = require("./services/fileService")
 const { analyzeImageWithGemini } = require("./services/visionService")
 
+const { analyzePdfWithGemini } = require("./services/documentService");
+
 // Cria a aplicação
 const app = express();
 
@@ -57,76 +59,90 @@ Regras:
 
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    const { provider, message = "Analise este arquivos.", history = "[]" } = req.body
 
-    if (!req.file) {
-      return res.status(400).json({
-        reply: "Nenhum arquivo foi enviado"
-      })
-    }
+    console.log("UPLOAD CHAMADO");
+    console.log("Arquivo recebido:", req.file);
+    console.log("Body recebido:", req.body);
 
-    const parsedHistory = JSON.parse(history)
+    const { provider, message, history } = req.body;
 
-    let reply
+    const parsedHistory = JSON.parse(history || "[]");
 
-    //se for imagem usa o gemini multimodal
-    if(isImageFile(req.file)) {
-      reply = await analyzeImageWithGemini(req.file, message)
+    console.log("Histórico convertido OK");
+
+    let reply;
+
+    // ===============================
+    // 📄 PDF → OCR COMPLETO (SEM POPPLER)
+    // ===============================
+    if (req.file.mimetype === "application/pdf") {
+
+      console.log("PDF detectado → enviando para Gemini completo");
+
+      reply = await analyzePdfWithGemini(req.file, message);
+
+      console.log("PDF analisado OK");
 
       return res.json({
         reply,
         fileName: req.file.originalname
-      })
+      });
     }
 
-    //se for document/text/codigo, extrai o conteudo
-    const filecontent = await extractFileContent(req.file) 
+    // ===============================
+    // 🖼️ IMAGEM → OCR
+    // ===============================
+    if (req.file.mimetype.startsWith("image/")) {
 
-      const systemPrompt = {
-        role: "system",
-        content: getSystemPrompt()
+      console.log("Imagem detectada → OCR Gemini");
+
+      reply = await analyzeImageWithGemini(req.file, message);
+
+      console.log("Imagem analisada OK");
+
+      return res.json({
+        reply,
+        fileName: req.file.originalname
+      });
     }
 
-    const fileMessage = {
-      role: "user",
-      content: `
-      Mensagem do usuario:
-      ${message}
+    // ===============================
+    // 📝 OUTROS ARQUIVOS → TEXTO
+    // ===============================
+    console.log("Arquivo texto detectado");
 
-      Arquivo enviado:
-      ${req.file.originalname}
+    const fileContent = fs.readFileSync(req.file.path, "utf-8");
 
-      Conteúdo extraído do arquivo:
-      ${filecontent}
+    const messages = [
+      ...parsedHistory,
+      {
+        role: "user",
+        content: `
+Mensagem:
+${message}
+
+Arquivo:
+${fileContent}
         `.trim()
-    }
-
-    const messages = [systemPrompt, ...parsedHistory, fileMessage]
-
-    if(provider === "openai") {
-      try {
-        reply = await sendToOpenAI(messages)
-      } catch (error) {
-        console.log("OpenAi falhou no upload, usando Gemini...")
-        reply = await sendToGemini(messages)
       }
-    }else {
-      reply = await sendToGemini(messages)
-    }
+    ];
+
+    reply = await sendToGemini(messages);
 
     return res.json({
       reply,
       fileName: req.file.originalname
-    })
-  } catch(error) {
-    console.log("Erro no /upload:", error)
+    });
+
+  } catch (error) {
+    console.error("Erro no /upload:", error);
 
     return res.status(500).json({
-      reply: "Erro ao processar o arquivo",
+      reply: "Erro ao processar arquivo.",
       error: error.message
-    })
+    });
   }
-})
+});
 
 // Rota principal do chat
 app.post("/chat", async (req, res) => {
@@ -162,6 +178,7 @@ app.post("/chat", async (req, res) => {
       try {
         reply = await sendToOpenAI(messages);
       } catch (error) {
+
         console.log("OpenAI falhou, usando Gemini...");
         console.error("Erro OpenAI:", error.message);
 
@@ -180,7 +197,8 @@ app.post("/chat", async (req, res) => {
     console.error("Erro no /chat:", error);
 
     return res.status(500).json({
-      reply: "Erro ao consultar a IA.",
+      reply:
+        "O Gemini atingiu o limite gratuito no momento. Aguarde alguns segundos e tente novamente.",
       error: error.message
     });
   }

@@ -13,9 +13,7 @@
     <aside class="chat-sidebar">
       <div class="sidebar-header">
         <h2>Adapt IA</h2>
-        <p>
-          Converse naturalmente. A IA entende o contexto ao longo das mensagens.
-        </p>
+        <p>Converse naturalmente. A IA entende o contexto ao longo das mensagens.</p>
       </div>
 
       <div class="info-box">
@@ -42,13 +40,12 @@
 
         <input
           type="file"
-          id = "fileInput"
+          id="fileInput"
           class="file-input"
-          accept=".txt,.js,.html,.css,.json,.md,.csv,.xml,.sql,.java,.py,.php,.c,.cpp,.pdf,.docx,.png,.jpg,.jpeg,.webp">
+          accept=".txt,.js,.html,.css,.json,.md,.csv,.xml,.sql,.java,.py,.php,.c,.cpp,.pdf,.docx,.png,.jpg,.jpeg,.webp"
+        >
 
-          <div class="file-preview" id="filePreview"></div>
-
-          <span id="fileNamePreview" class="file-name-preview"></span>
+        <div id="filePreview" class="file-preview"></div>
 
         <textarea
           id="messageInput"
@@ -56,6 +53,7 @@
           rows="1"
         ></textarea>
 
+        <!-- IMPORTANTE: type="button" evita reload da página -->
         <button type="button" id="sendButton">Enviar</button>
       </form>
     </section>

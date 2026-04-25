@@ -23,21 +23,29 @@ async function sendToGemini(messages) {
     })
     .join("\n");
 
+  // Debug para saber se o prompt está muito grande
+  console.log("Enviando para Gemini...");
+  console.log("Quantidade de mensagens:", messages.length);
+  console.log("Tamanho do prompt:", prompt.length);
+
   // Máximo de tentativas
   const maxAttempts = 3;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) { // tenta até 3 vezes em caso de erro temporário
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      console.log(`Tentativa Gemini ${attempt}/${maxAttempts}`);
 
-      // 🔥 PRIMEIRA TENTATIVA (modelo principal FREE)
       const response = await client.models.generateContent({
-        model: "gemini-2.5-flash-lite", // 🏆 melhor escolha gratuita
+        model: "gemini-2.5-flash-lite",
         contents: prompt
       });
 
-      return response.text || "Sem resposta.";
+      console.log("Gemini respondeu OK");
 
+      return response.text || "Sem resposta.";
     } catch (error) {
+      console.error("Erro no Gemini:", error);
+
       const errorText = error.message || "";
 
       const isTemporary =
@@ -45,26 +53,30 @@ async function sendToGemini(messages) {
         errorText.includes("UNAVAILABLE") ||
         errorText.includes("high demand");
 
-      // Se não for erro temporário, tenta fallback direto
       if (!isTemporary) {
         console.log("Tentando fallback para modelo secundário...");
 
-        const fallbackResponse = await client.models.generateContent({
-          model: "gemini-2.5-flash", // fallback mais forte
-          contents: prompt
-        });
+        try {
+          const fallbackResponse = await client.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt
+          });
 
-        return fallbackResponse.text || "Sem resposta.";
+          console.log("Fallback Gemini respondeu OK");
+
+          return fallbackResponse.text || "Sem resposta.";
+        } catch (fallbackError) {
+          console.error("Erro no fallback Gemini:", fallbackError);
+          throw new Error(fallbackError.message || "Erro ao consultar Gemini.");
+        }
       }
 
-      // Se chegou no limite de tentativas
       if (attempt === maxAttempts) {
         throw new Error(
           "Gemini está com alta demanda. Tente novamente em alguns segundos."
         );
       }
 
-      // Espera antes de tentar novamente
       await delay(1500 * attempt);
     }
   }

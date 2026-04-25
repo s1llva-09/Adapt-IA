@@ -1,50 +1,61 @@
-//Serviço para analise real de imagens
+// ===============================
+// 🖼️ SERVICE PARA ANALISAR IMAGEM (OCR)
+// ===============================
 
-//importar cliente gemini
-const { GoogleGenAI } = require("@google/genai")
+const { GoogleGenAI } = require("@google/genai");
+const fs = require("fs");
+const mime = require("mime-types");
 
-//le o arquivo da image em binare
-const fs = require("fs")
-
-// Detecta o tipo MIME do arquivo
-const mime = require("mime-types")
-
-// Cria o cliente Gemini usando a chave do .env
 const client = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY
-})
+  apiKey: process.env.GEMINI_API_KEY
+});
 
-//analisa uma imagem usando Gemini multimodal
+// Analisa imagem com OCR + descrição
 async function analyzeImageWithGemini(file, message) {
-    //descobre o tipo da imagem(png, jpeg, etc)
-    const mimeType = mime.lookup(file.originalname || file.mimeType || "image/png")
 
-    //lê a image e converte para base64
-    const imageBase64 = fs.readFileSync(file.path).toString("base64")
+  // Descobre o tipo da imagem
+  const mimeType = mime.lookup(file.originalname) || file.mimetype;
 
-    //chama o gemini com o texto + image
-    const response = await client.models.generateContent({
-        model: "gemini-2.5-flash-lite",
-        contents: [
-            {
-                role: "user",
-                parts: [
-                    {
-                        text:
-                        message ||
-                        "Analise esta imagem. Descreva oq aparece nela e responsa em português"
-                    },
-                    {
-                        inlineData: {
-                            mimeType,
-                            data: imageBase64
-                        }
-                    }
-                ]
+  // Converte imagem para base64
+  const imageBase64 = fs.readFileSync(file.path).toString("base64");
+
+  console.log("Enviando imagem para Gemini (OCR)...");
+
+  const response = await client.models.generateContent({
+    model: "gemini-2.5-flash-lite",
+
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `
+Analise esta imagem.
+
+Tarefas:
+1. Descreva o que aparece.
+2. Se houver texto, transcreva (OCR).
+3. Organize o conteúdo.
+4. Responda a pergunta do usuário.
+
+Pergunta:
+${message || "Analise a imagem."}
+            `.trim()
+          },
+          {
+            inlineData: {
+              mimeType,
+              data: imageBase64
             }
+          }
         ]
-    })
+      }
+    ]
+  });
 
-    return response.text || "Não consegui analisar a imagem"
+  console.log("Imagem analisada OK");
+
+  return response.text || "Não consegui analisar a imagem.";
 }
-module.exports = { analyzeImageWithGemini }
+
+module.exports = { analyzeImageWithGemini };
