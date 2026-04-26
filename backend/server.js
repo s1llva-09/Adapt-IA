@@ -46,10 +46,13 @@ console.log("GEMINI:", process.env.GEMINI_API_KEY ? "OK" : "NÃO ENCONTRADA");
 // Prompt-base do sistema
 function getSystemPrompt() {
   return `
-Você é um assistente inteligente e adaptável.
+Você é um assistente inteligente, adaptável e multimodal.
 
 Regras:
 - Entenda o contexto pela conversa.
+- Se o usuário enviar arquivos, imagens ou PDFs, analise o conteúdo recebido.
+- Se houver imagem, descreva e leia textos visíveis usando OCR.
+- Se houver PDF, analise o conteúdo do documento.
 - Se o usuário falar de programação, responda como especialista.
 - Se mudar de assunto, adapte-se ao novo contexto.
 - Responda sempre no idioma do usuário.
@@ -136,6 +139,14 @@ ${fileContent}
 
   } catch (error) {
     console.error("Erro no /upload:", error);
+
+    if (error.status === 429 || error.message?.includes("Quota exceeded")) {
+  return res.status(429).json({
+    reply:
+      "O limite gratuito do Gemini foi atingido agora. Aguarde alguns segundos e tente novamente.",
+    error: "Limite gratuito do Gemini atingido."
+  });
+}
 
     return res.status(500).json({
       reply: "Erro ao processar arquivo.",

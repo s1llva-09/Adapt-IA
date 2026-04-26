@@ -417,86 +417,185 @@ async function typeMessage(content) {
   }
 }
 
-// Função chamada ao clicar em enviar ou apertar Enter.
+// Função responsável por enviar mensagem ou arquivo
 async function handleSubmit(event) {
-  // Evita reload da página.
+
+  // ===============================
+  // 🛑 IMPEDIR RELOAD DA PÁGINA
+  // ===============================
+
+  // Quando usamos <form>, ao enviar ele recarrega a página
+  // Isso impede esse comportamento
   if (event) event.preventDefault();
 
+
+  // ===============================
+  // 🔍 PEGANDO ELEMENTOS DA TELA
+  // ===============================
+
+  // Campo de texto onde o usuário digita
   const input = document.getElementById("messageInput");
+
+  // Input de arquivo (📎)
   const fileInput = document.getElementById("fileInput");
+
+  // Pega o arquivo selecionado (se existir)
+  // ?. evita erro caso não tenha arquivo
   const file = fileInput?.files[0];
+
+  // Pega qual IA foi escolhida (OpenAI ou Gemini)
   const provider = getProvider();
 
-  console.log("Arquivo selecionado:", file);
 
+  // ===============================
+  // 🚫 VALIDAÇÕES BÁSICAS
+  // ===============================
+
+  // Se não tiver input ou provider, para tudo
   if (!input || !provider) return;
 
+  // Remove espaços da mensagem
   const message = input.value.trim();
 
+  // Se não tem mensagem E nem arquivo, não envia
   if (!message && !file) return;
 
-  // Histórico antes da mensagem atual.
+
+  // ===============================
+  // 📦 HISTÓRICO DA CONVERSA
+  // ===============================
+
+  // Pega o histórico atual antes de enviar
   const historyBeforeSubmit = getConversationHistory();
 
-  // Monta anexo visual, se tiver arquivo.
+
+  // ===============================
+  // 📎 TRATAMENTO DE ARQUIVO (PREVIEW)
+  // ===============================
+
+  // Se tiver arquivo → cria preview (imagem ou nome)
   const attachment = file ? await buildAttachment(file) : null;
 
-  // Mostra a mensagem do usuário no chat.
+
+  // ===============================
+  // 👤 MOSTRA MENSAGEM DO USUÁRIO NA TELA
+  // ===============================
+
   addMessage(
-    "user",
-    message || `Arquivo enviado: ${file.name}`,
-    attachment
+    "user", // tipo de mensagem
+    message || `Arquivo enviado: ${file.name}`, // texto ou nome do arquivo
+    attachment // preview visual (imagem ou ícone)
   );
 
+  // Atualiza a tela
   renderMessages();
 
-  // Limpa o campo de texto.
-  input.value = "";
-  input.style.height = "auto";
+
+  // ===============================
+  // 🧹 LIMPA INPUT
+  // ===============================
+
+  input.value = ""; // limpa texto
+  input.style.height = "auto"; // reseta altura do textarea
+
+
+  // ===============================
+  // ⏳ MOSTRA "IA DIGITANDO..."
+  // ===============================
 
   showTyping();
 
+
   try {
-    // Se tiver arquivo, envia para /upload.
-    // Se não tiver arquivo, envia para /chat.
-    const data = file
-      ? await uploadFile(
-          provider,
-          message || "Analise este arquivo.",
-          historyBeforeSubmit,
-          file
-        )
-      : await sendMessage(
-          provider,
-          message,
-          [...historyBeforeSubmit, { role: "user", content: message }]
-        );
+
+    // ===============================
+    // 🚀 ENVIO PARA BACKEND
+    // ===============================
+
+    let data;
+
+    // 🔥 SE TEM ARQUIVO → usa rota /upload
+    if (file) {
+
+      data = await uploadFile(
+        provider, // qual IA usar
+        message || "Analise este arquivo.", // mensagem padrão
+        historyBeforeSubmit, // histórico
+        file // arquivo
+      );
+
+    } else {
+
+      // 🔥 SE NÃO TEM ARQUIVO → mensagem normal
+
+      data = await sendMessage(
+        provider,
+        message,
+        [
+          ...historyBeforeSubmit,
+          { role: "user", content: message }
+        ]
+      );
+    }
+
+
+    // ===============================
+    // 🧪 DEBUG (VER NO CONSOLE)
+    // ===============================
 
     console.log("Resposta recebida do backend:", data);
 
-    // Limpa arquivo selecionado.
-    if (fileInput) fileInput.value = "";
 
-    // Limpa preview.
-    const filePreview = document.getElementById("filePreview");
-    if (filePreview) filePreview.innerHTML = "";
+    // ===============================
+    // 📩 PEGANDO RESPOSTA DA IA
+    // ===============================
 
-    // Pega resposta da IA.
     const reply = data.reply || "Sem resposta da IA.";
+
+
+    // ===============================
+    // ❌ REMOVE "DIGITANDO..."
+    // ===============================
 
     removeTyping();
 
-    // Para arquivo, mostra direto.
-    // Para texto, usa efeito digitando.
-    if (file) {
-      addMessage("assistant", reply);
-      renderMessages();
-    } else {
-      await typeMessage(reply);
-      addMessage("assistant", reply);
-      renderMessages();
-    }
+
+    // ===============================
+    // 🤖 ADICIONA RESPOSTA DA IA
+    // ===============================
+
+    addMessage("assistant", reply);
+
+
+    // ===============================
+    // 🔄 ATUALIZA CHAT NA TELA
+    // ===============================
+
+    renderMessages();
+
+
+    // ===============================
+    // 🧹 LIMPA ARQUIVO SELECIONADO
+    // ===============================
+
+    if (fileInput) fileInput.value = "";
+
+
+    // ===============================
+    // 🖼️ LIMPA PREVIEW DO ARQUIVO
+    // ===============================
+
+    const filePreview = document.getElementById("filePreview");
+
+    if (filePreview) filePreview.innerHTML = "";
+
+
   } catch (error) {
+
+    // ===============================
+    // ❌ ERRO AO ENVIAR
+    // ===============================
+
     removeTyping();
 
     addMessage(
