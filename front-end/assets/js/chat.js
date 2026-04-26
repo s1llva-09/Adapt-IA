@@ -1,5 +1,71 @@
+console.log("CHAT.JS NOVO CARREGADO");
 // Importa as funções que conversam com o backend.
-import { sendMessage, uploadFile } from "./api.js";
+import { sendMessage, uploadFile } from "./api.js?v=999";
+
+let chatHistoryCache = null;
+
+function getBackendOrigin() {
+  const hostname = window.location.hostname || "127.0.0.1";
+  return `http://${hostname}:3000`;
+}
+
+function getTransferState() {
+  try {
+    const parsed = JSON.parse(window.name || "{}");
+    return parsed.adaptIaTransfer || null;
+  } catch (error) {
+    console.error("Erro ao ler estado de transicao:", error);
+    return null;
+  }
+}
+
+function saveTransferState() {
+  try {
+    const history = getChatHistory().map(({ role, content }) => ({
+      role,
+      content
+    }));
+
+    window.name = JSON.stringify({
+      adaptIaTransfer: {
+        provider: getProvider(),
+        chatHistory: history
+      }
+    });
+  } catch (error) {
+    console.error("Erro ao salvar estado de transicao:", error);
+  }
+}
+
+function restoreTransferState() {
+  const transferState = getTransferState();
+
+  if (!transferState) return;
+
+  if (transferState.provider && !localStorage.getItem("provider")) {
+    localStorage.setItem("provider", transferState.provider);
+  }
+
+  const hasLocalHistory = getChatHistory().length > 0;
+
+  if (!hasLocalHistory && Array.isArray(transferState.chatHistory)) {
+    saveChatHistory(transferState.chatHistory);
+  }
+
+  window.name = "";
+}
+
+function redirectToBackendOriginIfNeeded() {
+  if (!window.location.protocol.startsWith("http")) return false;
+  if (window.location.port === "3000") return false;
+
+  saveTransferState();
+
+  const fileName = window.location.pathname.split("/").pop() || "chat.html";
+  window.location.replace(`${getBackendOrigin()}/${fileName}`);
+
+  return true;
+}
 
 // Retorna a IA escolhida salva no navegador.
 function getProvider() {
@@ -44,6 +110,48 @@ function saveChatHistory(history) {
     }));
 
     localStorage.setItem("chatHistory", JSON.stringify(compactHistory));
+  }
+}
+
+function legacyGetChatHistory() {
+  if (Array.isArray(chatHistoryCache)) {
+    return chatHistoryCache;
+  }
+
+  try {
+    chatHistoryCache = JSON.parse(localStorage.getItem("chatHistory")) || [];
+  } catch (error) {
+    console.error("Erro ao ler o historico:", error);
+    chatHistoryCache = [];
+  }
+
+  return chatHistoryCache;
+}
+
+function legacySaveChatHistory(history) {
+  chatHistoryCache = Array.isArray(history) ? history : [];
+
+  try {
+    localStorage.setItem("chatHistory", JSON.stringify(chatHistoryCache));
+  } catch (error) {
+    console.error("Erro ao salvar historico:", error);
+
+    const compactHistory = chatHistoryCache.map((message) => ({
+      role: message.role,
+      content: message.content,
+      attachment: message.attachment
+        ? {
+            name: message.attachment.name,
+            type: message.attachment.type
+          }
+        : null
+    }));
+
+    try {
+      localStorage.setItem("chatHistory", JSON.stringify(compactHistory));
+    } catch (storageError) {
+      console.error("Erro ao salvar historico compacto:", storageError);
+    }
   }
 }
 
@@ -417,215 +525,162 @@ async function typeMessage(content) {
   }
 }
 
-// Função responsável por enviar mensagem ou arquivo
+// Função chamada quando clica em enviar ou aperta Enter
+// Função chamada quando o usuário clica no botão Enviar ou aperta Enter
 async function handleSubmit(event) {
-
-  // ===============================
-  // 🛑 IMPEDIR RELOAD DA PÁGINA
-  // ===============================
-
-  // Quando usamos <form>, ao enviar ele recarrega a página
-  // Isso impede esse comportamento
+  // Impede qualquer comportamento padrão do navegador
   if (event) event.preventDefault();
 
-
-  // ===============================
-  // 🔍 PEGANDO ELEMENTOS DA TELA
-  // ===============================
-
-  // Campo de texto onde o usuário digita
+  // Pega o campo de texto
   const input = document.getElementById("messageInput");
 
-  // Input de arquivo (📎)
+  // Pega o input de arquivo
   const fileInput = document.getElementById("fileInput");
 
-  // Pega o arquivo selecionado (se existir)
-  // ?. evita erro caso não tenha arquivo
+  // Pega o arquivo selecionado, se existir
   const file = fileInput?.files[0];
 
-  // Pega qual IA foi escolhida (OpenAI ou Gemini)
+  // Pega a IA escolhida: openai ou gemini
   const provider = getProvider();
 
+  console.log("HANDLE SUBMIT CHAMADO");
+  console.log("Arquivo selecionado:", file);
 
-  // ===============================
-  // 🚫 VALIDAÇÕES BÁSICAS
-  // ===============================
-
-  // Se não tiver input ou provider, para tudo
+  // Se não tiver input ou provider, para a função
   if (!input || !provider) return;
 
-  // Remove espaços da mensagem
+  // Pega a mensagem digitada
   const message = input.value.trim();
 
-  // Se não tem mensagem E nem arquivo, não envia
+  // Se não tiver mensagem nem arquivo, não envia nada
   if (!message && !file) return;
 
-
-  // ===============================
-  // 📦 HISTÓRICO DA CONVERSA
-  // ===============================
-
-  // Pega o histórico atual antes de enviar
+  // Pega o histórico antes de adicionar a mensagem atual
   const historyBeforeSubmit = getConversationHistory();
 
-
-  // ===============================
-  // 📎 TRATAMENTO DE ARQUIVO (PREVIEW)
-  // ===============================
-
-  // Se tiver arquivo → cria preview (imagem ou nome)
+  // Cria o preview visual do arquivo, se houver
   const attachment = file ? await buildAttachment(file) : null;
 
-
-  // ===============================
-  // 👤 MOSTRA MENSAGEM DO USUÁRIO NA TELA
-  // ===============================
-
+  // Mostra a mensagem do usuário no chat
   addMessage(
-    "user", // tipo de mensagem
-    message || `Arquivo enviado: ${file.name}`, // texto ou nome do arquivo
-    attachment // preview visual (imagem ou ícone)
+    "user",
+    message || `Arquivo enviado: ${file.name}`,
+    attachment
   );
 
   // Atualiza a tela
   renderMessages();
 
+  // Limpa o campo de texto
+  input.value = "";
+  input.style.height = "auto";
 
-  // ===============================
-  // 🧹 LIMPA INPUT
-  // ===============================
-
-  input.value = ""; // limpa texto
-  input.style.height = "auto"; // reseta altura do textarea
-
-
-  // ===============================
-  // ⏳ MOSTRA "IA DIGITANDO..."
-  // ===============================
-
+  // Mostra "A IA está digitando..."
   showTyping();
 
-
   try {
-
-    // ===============================
-    // 🚀 ENVIO PARA BACKEND
-    // ===============================
-
     let data;
 
-    // 🔥 SE TEM ARQUIVO → usa rota /upload
+    // Se tiver arquivo, usa uploadFile
     if (file) {
+      console.log("ENVIANDO ARQUIVO PARA BACKEND");
 
       data = await uploadFile(
-        provider, // qual IA usar
-        message || "Analise este arquivo.", // mensagem padrão
-        historyBeforeSubmit, // histórico
-        file // arquivo
+        provider,
+        message || "Analise este arquivo.",
+        historyBeforeSubmit,
+        file
       );
 
+      console.log("RESPOSTA DO UPLOAD:", data);
     } else {
-
-      // 🔥 SE NÃO TEM ARQUIVO → mensagem normal
+      // Se não tiver arquivo, envia mensagem normal
+      console.log("ENVIANDO TEXTO PARA BACKEND");
 
       data = await sendMessage(
         provider,
         message,
-        [
-          ...historyBeforeSubmit,
-          { role: "user", content: message }
-        ]
+        [...historyBeforeSubmit, { role: "user", content: message }]
       );
+
+      console.log("RESPOSTA DO CHAT:", data);
     }
 
-
-    // ===============================
-    // 🧪 DEBUG (VER NO CONSOLE)
-    // ===============================
-
-    console.log("Resposta recebida do backend:", data);
-
-
-    // ===============================
-    // 📩 PEGANDO RESPOSTA DA IA
-    // ===============================
-
+    // Pega a resposta da IA
     const reply = data.reply || "Sem resposta da IA.";
 
+    console.log("REPLY FINAL:", reply);
+    console.log("VAI EXIBIR NO CHAT:", reply);
 
-    // ===============================
-    // ❌ REMOVE "DIGITANDO..."
-    // ===============================
-
+    // Remove o carregamento
     removeTyping();
 
-
-    // ===============================
-    // 🤖 ADICIONA RESPOSTA DA IA
-    // ===============================
-
+    // Adiciona a resposta da IA no histórico
     addMessage("assistant", reply);
 
-
-    // ===============================
-    // 🔄 ATUALIZA CHAT NA TELA
-    // ===============================
-
+    // Renderiza a resposta na tela
     renderMessages();
 
-
-    // ===============================
-    // 🧹 LIMPA ARQUIVO SELECIONADO
-    // ===============================
-
+    // Limpa o arquivo selecionado
     if (fileInput) fileInput.value = "";
 
-
-    // ===============================
-    // 🖼️ LIMPA PREVIEW DO ARQUIVO
-    // ===============================
-
+    // Limpa o preview do arquivo
     const filePreview = document.getElementById("filePreview");
-
     if (filePreview) filePreview.innerHTML = "";
 
-
   } catch (error) {
-
-    // ===============================
-    // ❌ ERRO AO ENVIAR
-    // ===============================
-
+    // Remove carregamento
     removeTyping();
 
+    // Mostra erro no chat
     addMessage(
       "assistant",
       error.message || "Desculpe, houve um erro ao conectar com o servidor."
     );
 
+    // Atualiza a tela
     renderMessages();
 
+    // Mostra erro técnico no console
     console.error("erro ao enviar a mensagem:", error);
   }
 }
 
-// Inicializa o chat.
+// Inicializa o chat quando a página carrega
 function initializeChat() {
+  if (redirectToBackendOriginIfNeeded()) {
+    return;
+  }
+
+  restoreTransferState();
+
+  // Pega o provedor salvo no localStorage
   const provider = getProvider();
+
+  // Pega o label onde aparece Gemini/OpenAI
   const providerLabel = document.getElementById("providerLabel");
+
+  // Pega o botão de enviar
   const sendButton = document.getElementById("sendButton");
+
+  // Pega o input de arquivo
   const fileInput = document.getElementById("fileInput");
+
+  // Pega a área de preview do arquivo
   const filePreview = document.getElementById("filePreview");
 
+  // Se não tiver provider, volta para a tela inicial
   if (!provider) {
     window.location.href = "index.html";
     return;
   }
 
+  // Mostra o nome da IA escolhida
   if (providerLabel) {
     providerLabel.textContent = getProviderLabel(provider);
   }
 
+  // Se não tiver histórico, cria a primeira mensagem da IA
   if (getChatHistory().length === 0) {
     saveChatHistory([
       {
@@ -636,30 +691,37 @@ function initializeChat() {
     ]);
   }
 
+  // Mantém estado da sidebar
   const sidebarState = localStorage.getItem("sidebarState");
 
   if (sidebarState === "closed") {
     document.body.classList.add("sidebar-collapsed");
   }
 
+  // Renderiza mensagens salvas
   renderMessages();
+
+  // Configura textarea
   setupTextarea();
 
-  // Botão envia via JS.
-  // Não usamos submit nativo do form para evitar reload.
+  // Envia apenas pelo botão via JavaScript.
+  // Como agora não usamos submit nativo, evita reload/abort do fetch.
   if (sendButton) {
     sendButton.addEventListener("click", handleSubmit);
   }
 
-  // Preview do arquivo selecionado.
+  // Preview do arquivo selecionado
   if (fileInput && filePreview) {
     fileInput.addEventListener("change", () => {
       const file = fileInput.files[0];
 
+      // Limpa preview antigo
       filePreview.innerHTML = "";
 
+      // Se não tiver arquivo, para
       if (!file) return;
 
+      // Se for imagem, mostra miniatura
       if (file.type.startsWith("image/")) {
         const img = document.createElement("img");
         img.src = URL.createObjectURL(file);
@@ -670,6 +732,7 @@ function initializeChat() {
         filePreview.appendChild(img);
         filePreview.appendChild(span);
       } else {
+        // Se for PDF/documento, mostra só o nome
         filePreview.innerHTML = `<span>${file.name}</span>`;
       }
     });

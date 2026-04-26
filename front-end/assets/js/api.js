@@ -1,70 +1,121 @@
-// URL base do backend.
-// O front-end manda requisições para esse endereço.
-const API_URL = "http://localhost:3000";
+console.log("API.JS NOVO CARREGADO");
 
-// Função para enviar uma mensagem normal, sem arquivo.
+function getApiCandidates() {
+  const candidates = [];
+  const seen = new Set();
+  const savedApiUrl = localStorage.getItem("apiUrl");
+
+  const addCandidate = (url) => {
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    candidates.push(url);
+  };
+
+  if (savedApiUrl) {
+    addCandidate(savedApiUrl);
+  }
+
+  if (window.location.protocol.startsWith("http")) {
+    if (window.location.port === "3000") {
+      addCandidate(window.location.origin);
+    }
+
+    if (window.location.hostname) {
+      addCandidate(`http://${window.location.hostname}:3000`);
+    }
+  }
+
+  addCandidate("http://127.0.0.1:3000");
+  addCandidate("http://localhost:3000");
+
+  return candidates;
+}
+
+async function parseResponse(response) {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return {
+    reply: text || "Resposta vazia do servidor."
+  };
+}
+
+async function fetchWithFallback(path, options) {
+  const candidates = getApiCandidates();
+  let lastError = null;
+
+  for (const baseUrl of candidates) {
+    const url = `${baseUrl}${path}`;
+
+    try {
+      console.log(`[api] -> ${options.method || "GET"} ${url}`);
+
+      const response = await fetch(url, {
+        ...options,
+        mode: "cors"
+      });
+
+      localStorage.setItem("apiUrl", baseUrl);
+      console.log(`[api] <- ${response.status} ${url}`);
+
+      return response;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[api] Falha de rede em ${url}:`, error);
+    }
+  }
+
+  throw new Error(
+    `Nao foi possivel conectar ao backend. URLs testadas: ${candidates.join(", ")}. ${lastError?.message || ""}`.trim()
+  );
+}
+
 export async function sendMessage(provider, message, history) {
-  // Faz uma requisição POST para a rota /chat do backend.
-  const response = await fetch(`${API_URL}/chat`, {
+  const response = await fetchWithFallback("/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      provider, // IA escolhida: openai ou gemini
-      message,  // mensagem digitada pelo usuário
-      history   // histórico da conversa
+      provider,
+      message,
+      history
     })
   });
 
-  // Converte a resposta do backend para objeto JavaScript.
-  const data = await response.json();
+  const data = await parseResponse(response);
 
-  // Se o backend retornar erro, mostra no console e lança erro.
   if (!response.ok) {
-    console.error("Erro vindo do backend:", data);
+    console.error("Erro vindo do /chat:", data);
     throw new Error(data.error || data.reply || "Erro ao enviar mensagem.");
   }
 
-  // Retorna os dados para o chat.js.
   return data;
 }
 
-// Função para enviar arquivo + mensagem para o backend.
 export async function uploadFile(provider, message, history, file) {
-  // FormData é obrigatório para enviar arquivos.
-  // Não usamos JSON quando existe arquivo.
   const formData = new FormData();
 
-  // Adiciona os dados no formulário.
   formData.append("provider", provider);
   formData.append("message", message);
   formData.append("history", JSON.stringify(history));
   formData.append("file", file);
 
-  // Envia para a rota /upload.
-  // IMPORTANTE: não coloque Content-Type aqui.
-  // O navegador define multipart/form-data automaticamente.
-  const response = await fetch(`${API_URL}/upload`, {
+  const response = await fetchWithFallback("/upload", {
     method: "POST",
     body: formData
   });
 
-  // Mostra o status para debug.
-  console.log("Status do upload:", response.status);
+  const data = await parseResponse(response);
 
-  // Converte a resposta do backend.
-  const data = await response.json();
-
-  // Mostra o retorno final para debug.
-  console.log("Resposta final do upload:", data);
-
-  // Se o backend retornar erro, lança erro.
   if (!response.ok) {
-    console.error("Erro vindo do upload:", data);
+    console.error("Erro vindo do /upload:", data);
     throw new Error(data.error || data.reply || "Erro ao enviar arquivo.");
   }
 
-  // Retorna a resposta para o chat.js.
   return data;
 }

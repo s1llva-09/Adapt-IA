@@ -1,31 +1,40 @@
-// Esta função é usada na tela inicial.
-// Ela salva qual IA o usuário escolheu
-// e depois leva ele para a página do chat.
+function getInitialHistory() {
+  return [
+    {
+      role: "assistant",
+      content:
+        "Olá! Me diga sobre qual assunto você quer conversar e eu vou me adaptar ao contexto."
+    }
+  ];
+}
+
+function redirectToBackendChat(provider, history) {
+  const hostname = window.location.hostname || "127.0.0.1";
+
+  window.name = JSON.stringify({
+    adaptIaTransfer: {
+      provider,
+      chatHistory: history
+    }
+  });
+
+  window.location.href = `http://${hostname}:3000/chat.html`;
+}
+
 function selectProvider(provider) {
-  // Salva o provider escolhido no navegador.
-  // Exemplos:
-  // "openai"
-  // "gemini"
+  const initialHistory = getInitialHistory();
+
+  if (
+    window.location.protocol.startsWith("http") &&
+    window.location.port !== "3000"
+  ) {
+    redirectToBackendChat(provider, initialHistory);
+    return;
+  }
+
   localStorage.setItem("provider", provider);
-
-  // Cria um histórico inicial do chat.
-  // Assim o chat abre já com uma mensagem da IA,
-  // em vez de abrir completamente vazio.
-  localStorage.setItem(
-    "chatHistory",
-    JSON.stringify([
-      {
-        role: "assistant",
-        content:
-          "Olá! Me diga sobre qual assunto você quer conversar e eu vou me adaptar ao contexto."
-      }
-    ])
-  );
-
-  // Redireciona para a tela do chat
+  localStorage.setItem("chatHistory", JSON.stringify(initialHistory));
   window.location.href = "chat.html";
 }
 
-// Como no HTML você usa onclick="selectProvider('openai')",
-// precisamos deixar essa função disponível no escopo global.
 window.selectProvider = selectProvider;
