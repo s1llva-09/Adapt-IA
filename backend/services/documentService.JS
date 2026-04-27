@@ -1,35 +1,65 @@
-// ===============================
-// 📄 SERVICE PARA ANALISAR PDF COMPLETO (OCR + TEXTO)
-// ===============================
+// ============================================================
+// SERVIÇO DE ANÁLISE DE PDF - AdaptIA
+// ============================================================
+// Este serviço é responsável por enviar PDFs completos para
+// o Gemini e receber a análise completa com OCR do documento.
+// ============================================================
 
-// Importa biblioteca oficial do Gemini
+// ----------------------------------------------------------
+// IMPORTAÇÕES
+// ----------------------------------------------------------
+
+// GoogleGenAI: Biblioteca oficial do Google para acessar
+// os modelos Gemini (mesma API usada pelo Google AI Studio)
 const { GoogleGenAI } = require("@google/genai");
 
-// fs → usado para ler arquivos do sistema
+// fs (File System): Módulo nativo do Node.js para ler
+// arquivos do sistema de arquivos (necessário para ler o PDF)
 const fs = require("fs");
 
-// Cria cliente Gemini usando API KEY do .env
+// ----------------------------------------------------------
+// CRIAÇÃO DO CLIENTE GEMINI
+// ----------------------------------------------------------
+
+// Cria uma instância do cliente Gemini usando a API Key
+// que está armazenada na variável de ambiente GEMINI_API_KEY
 const client = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
 });
 
-// Função que envia PDF completo para o Gemini
+// ----------------------------------------------------------
+// FUNÇÃO PRINCIPAL: ANALISAR PDF COM GEMINI
+// ----------------------------------------------------------
+// Recebe: arquivo do PDF e mensagem opcional do usuário
+// Retorna: texto com a análise completa do documento
+
 async function analyzePdfWithGemini(file, message) {
 
-  // Lê o PDF e converte para base64
+  // --------------------------------------------------------
+  // CONVERSÃO DO PDF PARA BASE64
+  // --------------------------------------------------------
+  // O PDF é lido como binário e convertido para base64
+  // Base64 é necessário porque a API do Gemini aceita
+  // arquivos como texto codificado
   const pdfBase64 = fs.readFileSync(file.path).toString("base64");
 
   console.log("Enviando PDF completo para Gemini...");
 
-  // Envia o PDF + instruções para IA
+  // --------------------------------------------------------
+  // ENVIO PARA A API DO GEMINI
+  // --------------------------------------------------------
+  // Envia o PDF codificado + instrução de análise
   const response = await client.models.generateContent({
+    // Modelo utilizado: Gemini 2.5 Flash Lite (rápido e barato)
     model: "gemini-2.5-flash-lite",
 
+    // Conteúdo da mensagem: instruções + arquivo em anexo
     contents: [
       {
         role: "user",
         parts: [
           {
+            // Instruções detalhadas para a IA sobre como analisar
             text: `
 Analise este PDF completamente.
 
@@ -46,10 +76,11 @@ ${message || "Analise este PDF."}
             `.trim()
           },
           {
-            // 🔥 Aqui vai o PDF em base64
+            // O PDF em si, codificado em base64
+            // inlineData indica que é um arquivo inline (não uma URL)
             inlineData: {
-              mimeType: "application/pdf",
-              data: pdfBase64
+              mimeType: "application/pdf", // tipo do arquivo
+              data: pdfBase64 // conteúdo codificado
             }
           }
         ]
@@ -59,7 +90,14 @@ ${message || "Analise este PDF."}
 
   console.log("Resposta do Gemini recebida");
 
+  // Retorna o texto da resposta ou mensagem padrão se vazio
   return response.text || "Não consegui analisar o PDF.";
 }
+
+// ----------------------------------------------------------
+// EXPORTAÇÃO
+// ----------------------------------------------------------
+// Exporta a função para ser usada em outros arquivos
+// (principalmente em server.js na rota /upload)
 
 module.exports = { analyzePdfWithGemini };

@@ -1,51 +1,110 @@
-// Importa o Express para criar o servidor
+// ============================================================
+// SERVIDOR PRINCIPAL - AdaptIA Backend
+// ============================================================
+// Este arquivo é o ponto de entrada do servidor Node.js/Express.
+// Ele gerencia todas as rotas, intermediário (middlewares) e a comunicação
+// entre o front-end e os serviços de IA (OpenAI e Gemini).
+// ============================================================
+
+// ----------------------------------------------------------
+// IMPORTAÇÃO DE MÓDULOS
+// ----------------------------------------------------------
+
+// Express: Framework web para criar o servidor HTTP
 const express = require("express");
 
-// Importa o CORS para permitir chamadas do front-end
+// CORS: Permite que o front-end (que roda em outra porta)
+// faça requisições para este backend sem erros de segurança
 const cors = require("cors");
 
-//Permite o servidor receber arquivos enviados pelo usuário
-const multer = require("multer") //recebe arquivos
+// Multer: Middleware para processar uploads de arquivos
+// (multipart/form-data). Salva arquivos temporariamente no servidor.
+const multer = require("multer");
 
-//Importa um módulo nativo do Node.js
-//Ajuda a trabalhar com caminhos e arquivos
-const path = require("path") //manipula eles
+// Path: Utilitário do Node.js para manipular caminhos de arquivos
+// e garantir compatibilidade entre sistemas operacionais
+const path = require("path");
+
+// FS (File System): Módulo nativo do Node.js para ler,
+// escrever e manipular arquivos no sistema de arquivos
 const fs = require("fs");
 
-// Carrega as variáveis de ambiente do arquivo .env dentro de backend/
+// Dotenv: Carrega variáveis de ambiente do arquivo .env
+// para dentro de process.env (como OPENAI_API_KEY e GEMINI_API_KEY)
 require("dotenv").config({ path: "./backend/.env" });
 
-// Importa os serviços que falam com OpenAI e Gemini
+// ----------------------------------------------------------
+// IMPORTAÇÃO DOS SERVIÇOS DE IA
+// ----------------------------------------------------------
+
+// Serviços que encapsulam a lógica de comunicação com as APIs
 const { sendToOpenAI } = require("./services/openaiService");
 const { sendToGemini } = require("./services/geminiService");
 
-//importa os serviços de analise de imagem tanto com o gemini quanto com a biblioteca instalada
-const { extractFileContent, isImageFile } = require("./services/fileService")
-const { analyzeImageWithGemini } = require("./services/visionService")
+// Serviço para extrair conteúdo de arquivos
+// (verifica se é imagem, PDF, texto, etc)
+const { extractFileContent, isImageFile } = require("./services/fileService");
 
+// Serviço que usa Gemini para fazer OCR em imagens
+const { analyzeImageWithGemini } = require("./services/visionService");
+
+// Serviço que usa Gemini para analisar documentos PDF completos
 const { analyzePdfWithGemini } = require("./services/documentService");
 
-// Cria a aplicação
+// ----------------------------------------------------------
+// CRIAÇÃO DA APLICAÇÃO EXPRESS
+// ----------------------------------------------------------
+
 const app = express();
 
-// Middlewares
+// ----------------------------------------------------------
+// CONFIGURAÇÃO DE MIDDLEWARES
+// ----------------------------------------------------------
+
+// Habilita CORS para todas as rotas
+// Isso permite que front-ends de outras origens acessem este backend
 app.use(cors());
+
+// Parser JSON: Permite que o Express entenda requisições
+// com corpo em formato JSON (application/json)
 app.use(express.json());
+
+// Serve arquivos estáticos: Torna públicos os arquivos da pasta front-end
+// Isso significa que http://localhost:3000/index.html vai funcionar
 app.use(express.static(path.join(__dirname, "..", "front-end")));
 
-//configura o multer para salvar arquivos temporariamente em backend / uploads
-const upload = multer ({
+// ----------------------------------------------------------
+// CONFIGURAÇÃO DO MULTER (UPLOAD DE ARQUIVOS)
+// ----------------------------------------------------------
+
+// Multer é configurado para salvar arquivos enviados pelo usuário
+// no diretório "backend/uploads" temporariamente
+const upload = multer({
+  // Destino dos arquivos uploadados
   dest: path.join(__dirname, "uploads"),
+  
+  // Limite de tamanho: 15MB (evita arquivos muito grandes)
   limits: {
     fileSize: 15 * 1024 * 1024
   }
-})
+});
 
-// Logs úteis para conferir se as chaves foram carregadas
+// ----------------------------------------------------------
+// LOGS DE INICIALIZAÇÃO (DEBUG)
+// ----------------------------------------------------------
+
+// Verifica se as chaves de API foram carregadas corretamente
+// Exibe "OK" ou "NÃO ENCONTRADA" no console ao iniciar
 console.log("OPENAI:", process.env.OPENAI_API_KEY ? "OK" : "NÃO ENCONTRADA");
 console.log("GEMINI:", process.env.GEMINI_API_KEY ? "OK" : "NÃO ENCONTRADA");
 
-// Prompt-base do sistema
+// ----------------------------------------------------------
+// PROMPT DO SISTEMA
+// ----------------------------------------------------------
+
+// Define o comportamento padrão do assistente de IA
+// Este texto é enviado junto com cada requisição para
+// instruir a IA sobre como deve se comportar
 function getSystemPrompt() {
   return `
 Você é um assistente inteligente, adaptável e multimodal.
@@ -62,7 +121,12 @@ Regras:
   `.trim();
 }
 
-// Rota responsável por receber arquivos (imagem, PDF, etc)
+// ----------------------------------------------------------
+// ROTA DE HEALTH CHECK
+// ----------------------------------------------------------
+// Endpoint simples para verificar se o servidor está online
+// Útil para sistemas de monitoramento ou para testar conexão
+
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
@@ -70,106 +134,78 @@ app.get("/health", (req, res) => {
   });
 });
 
+// ----------------------------------------------------------
+// ROTA DE UPLOAD DE ARQUIVOS
+// ----------------------------------------------------------
+// Endpoint para receber arquivos do front-end
+// Suporta: imagens, PDFs e arquivos de texto
+
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-
-    // ===============================
-    // 🧪 DEBUG INICIAL
-    // ===============================
-
+    // --------------------------------------------------------
+    // DEBUG INICIAL - Registra dados recebidos
+    // --------------------------------------------------------
     console.log("UPLOAD CHAMADO");
-
-    // Mostra todos os dados do arquivo recebido
     console.log("Arquivo recebido:", req.file);
-
-    // Mostra os dados enviados junto (mensagem, provider, histórico)
     console.log("Body recebido:", req.body);
 
-
-    // ===============================
-    // 📦 EXTRAINDO DADOS DO REQUEST
-    // ===============================
-
-    // provider → gemini ou openai
-    // message → texto digitado pelo usuário
-    // history → histórico da conversa (vem como string)
+    // --------------------------------------------------------
+    // EXTRAÇÃO DE DADOS DO REQUEST
+    // --------------------------------------------------------
+    // provider: Qual IA usar (gemini ou openai)
+    // message: Texto opcional digitado pelo usuário
+    // history: Histórico da conversa (vem como string JSON)
     const { provider, message = "Analise este arquivo.", history = "[]" } = req.body;
 
-
-    // ===============================
-    // 🚫 VALIDAÇÃO
-    // ===============================
-
-    // Se não enviou arquivo, retorna erro
+    // --------------------------------------------------------
+    // VALIDAÇÃO
+    // --------------------------------------------------------
+    // Verifica se um arquivo foi realmente enviado
     if (!req.file) {
       return res.status(400).json({
         reply: "Nenhum arquivo foi enviado."
       });
     }
 
-
-    // ===============================
-    // 🔄 CONVERTENDO HISTÓRICO
-    // ===============================
-
-    // O histórico vem como string → transforma em array
+    // --------------------------------------------------------
+    // PROCESSAMENTO DO HISTÓRICO
+    // --------------------------------------------------------
+    // O histórico vem como string JSON → converte para Array
     const parsedHistory = JSON.parse(history);
-
     console.log("Histórico convertido OK");
 
-
-    // ===============================
-    // 📩 VARIÁVEL DA RESPOSTA FINAL
-    // ===============================
-
+    // --------------------------------------------------------
+    // VARIÁVEL PARA RESPOSTA FINAL
+    // --------------------------------------------------------
     let reply;
 
+    // --------------------------------------------------------
+    // PROCESSAMENTO BASEADO NO TIPO DE ARQUIVO
+    // --------------------------------------------------------
 
-    // ===============================
-    // 📄 CASO 1 → PDF
-    // ===============================
-
+    // CASO 1: ARQUIVO É UM PDF
     if (req.file.mimetype === "application/pdf") {
-
       console.log("PDF detectado → enviando para Gemini completo");
-
-      // Chama função que envia PDF para o Gemini
+      // Usa serviço especializado que faz OCR completo no PDF
       reply = await analyzePdfWithGemini(req.file, message);
-
       console.log("PDF analisado OK");
     }
-
-
-    // ===============================
-    // 🖼️ CASO 2 → IMAGEM
-    // ===============================
-
+    // CASO 2: ARQUIVO É UMA IMAGEM
     else if (req.file.mimetype.startsWith("image/")) {
-
       console.log("Imagem detectada → OCR Gemini");
-
-      // Chama função que envia imagem para o Gemini
+      // Usa serviço de visão para extrair texto e descrever imagem
       reply = await analyzeImageWithGemini(req.file, message);
-
       console.log("Imagem analisada OK");
     }
-
-
-    // ===============================
-    // 📃 CASO 3 → OUTROS ARQUIVOS TEXTO
-    // ===============================
-
+    // CASO 3: OUTROS ARQUIVOS (txt, csv, código, etc)
     else {
-
       console.log("Arquivo texto detectado");
-
-      // Lê o conteúdo do arquivo (txt, csv, etc)
+      // Lê o conteúdo do arquivo como texto
       const fileContent = fs.readFileSync(req.file.path, "utf-8");
 
-      // Monta mensagens para enviar para IA
+      // Monta mensagens para enviar à IA
       const messages = [
-        ...parsedHistory, // mantém histórico anterior
-
+        ...parsedHistory, // mantém histórico anterior para contexto
         {
           role: "user",
           content: `
@@ -182,38 +218,29 @@ ${fileContent}
         }
       ];
 
-      // Envia para o Gemini
+      // Envia para o Gemini para análise
       reply = await sendToGemini(messages);
     }
 
-
-    // ===============================
-    // 🔥 DEBUG FINAL (MUITO IMPORTANTE)
-    // ===============================
-
-    // Aqui você confirma se realmente tem resposta
+    // --------------------------------------------------------
+    // DEBUG FINAL - Confirma resposta antes de enviar
+    // --------------------------------------------------------
     console.log("RESPOSTA FINAL QUE VAI PRO FRONT:", reply);
 
-
-    // ===============================
-    // 📤 RETORNO PARA O FRONT-END
-    // ===============================
-
-    // Isso aqui é o MAIS IMPORTANTE do sistema inteiro
+    // --------------------------------------------------------
+    // RETORNO PARA O FRONT-END
+    // --------------------------------------------------------
+    // Retorna a resposta da IA e o nome do arquivo processado
     return res.status(200).json({
       reply, // resposta da IA
-      fileName: req.file.originalname // nome do arquivo
+      fileName: req.file.originalname // nome original do arquivo
     });
 
-
   } catch (error) {
-
-    // ===============================
-    // ❌ TRATAMENTO DE ERRO
-    // ===============================
-
+    // --------------------------------------------------------
+    // TRATAMENTO DE ERROS
+    // --------------------------------------------------------
     console.error("Erro no /upload:", error);
-
     return res.status(500).json({
       reply: "Erro ao processar arquivo.",
       error: error.message
@@ -221,58 +248,78 @@ ${fileContent}
   }
 });
 
-// Rota principal do chat
+// ----------------------------------------------------------
+// ROTA PRINCIPAL DE CHAT
+// ----------------------------------------------------------
+// Endpoint para enviar mensagens de texto para a IA
+// Sem upload de arquivos, apenas conversa
+
 app.post("/chat", async (req, res) => {
   try {
+    // Extrai dados enviados pelo front-end
     const { provider, message, history = [] } = req.body;
 
-    // Log de entrada para debug
+    // Log de debug para rastreamento
     console.log("Provider recebido:", provider);
     console.log("Message recebida:", message);
     console.log("History recebida:", history);
 
-    // Validação básica
+    // --------------------------------------------------------
+    // VALIDAÇÃO BÁSICA
+    // --------------------------------------------------------
     if (!provider || !message) {
       return res.status(400).json({
         reply: "Dados inválidos. provider e message são obrigatórios."
       });
     }
 
-    // Cria a mensagem de sistema
+    // --------------------------------------------------------
+    // MONTAGEM DAS MENSAGENS PARA A IA
+    // --------------------------------------------------------
+    // Cria prompt de sistema com regras de comportamento
     const systemPrompt = {
       role: "system",
       content: getSystemPrompt()
     };
 
-    // Junta o prompt do sistema com o histórico
+    // Junta: prompt do sistema + histórico + mensagem atual
     const messages = [systemPrompt, ...history];
 
     console.log("Messages montadas:", messages);
 
+    // --------------------------------------------------------
+    // ENVIO PARA A IA ESCOLHIDA
+    // --------------------------------------------------------
     let reply;
 
     if (provider === "openai") {
+      // Tenta OpenAI primeiro
       try {
         reply = await sendToOpenAI(messages);
       } catch (error) {
-
+        // Se OpenAI falhar, faz fallback para Gemini
         console.log("OpenAI falhou, usando Gemini...");
         console.error("Erro OpenAI:", error.message);
-
         reply = await sendToGemini(messages);
       }
     } else if (provider === "gemini") {
+      // Usa Gemini diretamente
       reply = await sendToGemini(messages);
     } else {
+      // Provedor inválido
       return res.status(400).json({
         reply: "Provedor desconhecido. Escolha 'openai' ou 'gemini'."
       });
     }
 
+    // Retorna resposta para o front-end
     return res.json({ reply });
-  } catch (error) {
-    console.error("Erro no /chat:", error);
 
+  } catch (error) {
+    // --------------------------------------------------------
+    // TRATAMENTO DE ERROS
+    // --------------------------------------------------------
+    console.error("Erro no /chat:", error);
     return res.status(500).json({
       reply:
         "O Gemini atingiu o limite gratuito no momento. Aguarde alguns segundos e tente novamente.",
@@ -281,10 +328,15 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-// Porta do servidor
+// ----------------------------------------------------------
+// INICIALIZAÇÃO DO SERVIDOR
+// ----------------------------------------------------------
+
+// Porta que o servidor vai ouvir (padrão: 3000)
+// Pode ser alterada via variável de ambiente PORT
 const PORT = process.env.PORT || 3000;
 
-// Sobe o servidor
+// Inicia o servidor e exibe mensagem no console
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
