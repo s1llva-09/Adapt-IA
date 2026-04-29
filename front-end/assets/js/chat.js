@@ -1,6 +1,10 @@
 console.log("CHAT.JS NOVO CARREGADO");
 // Importa as funções que conversam com o backend.
-import { sendMessage, uploadFile } from "./api.js?v=999";
+import { sendMessage, uploadFile } from "./api.js";
+
+import { protectPage } from "./auth.js";
+
+protectPage();
 
 let chatHistoryCache = null;
 
