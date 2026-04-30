@@ -1,12 +1,16 @@
 console.log("CHAT.JS NOVO CARREGADO");
 // Importa as funções que conversam com o backend.
 import { sendMessage, uploadFile } from "./api.js";
+import { protectPage, logout } from "./auth.js";
+import {
+  createConversation,
+  getMessages,
+  saveMessage
+} from "./database.js";
 
-import { protectPage } from "./auth.js";
-
+// Garante que apenas usuarios logados acessem o chat.
+// Se nao houver sessao ativa no Supabase, auth.js redireciona para login.html.
 protectPage();
-
-let chatHistoryCache = null;
 
 function getBackendOrigin() {
   const hostname = window.location.hostname || "127.0.0.1";
@@ -117,48 +121,6 @@ function saveChatHistory(history) {
   }
 }
 
-function legacyGetChatHistory() {
-  if (Array.isArray(chatHistoryCache)) {
-    return chatHistoryCache;
-  }
-
-  try {
-    chatHistoryCache = JSON.parse(localStorage.getItem("chatHistory")) || [];
-  } catch (error) {
-    console.error("Erro ao ler o historico:", error);
-    chatHistoryCache = [];
-  }
-
-  return chatHistoryCache;
-}
-
-function legacySaveChatHistory(history) {
-  chatHistoryCache = Array.isArray(history) ? history : [];
-
-  try {
-    localStorage.setItem("chatHistory", JSON.stringify(chatHistoryCache));
-  } catch (error) {
-    console.error("Erro ao salvar historico:", error);
-
-    const compactHistory = chatHistoryCache.map((message) => ({
-      role: message.role,
-      content: message.content,
-      attachment: message.attachment
-        ? {
-            name: message.attachment.name,
-            type: message.attachment.type
-          }
-        : null
-    }));
-
-    try {
-      localStorage.setItem("chatHistory", JSON.stringify(compactHistory));
-    } catch (storageError) {
-      console.error("Erro ao salvar historico compacto:", storageError);
-    }
-  }
-}
-
 // Adiciona uma nova mensagem ao histórico.
 function addMessage(role, content, attachment = null) {
   const history = getChatHistory();
@@ -170,6 +132,55 @@ function addMessage(role, content, attachment = null) {
 // Isso evita mandar preview base64 da imagem para a IA.
 function getConversationHistory() {
   return getChatHistory().map(({ role, content }) => ({ role, content }));
+}
+
+// Recupera o id da conversa atual.
+// Se ainda nao existir uma conversa no localStorage, cria uma no Supabase
+// e guarda o id para as proximas mensagens continuarem na mesma conversa.
+async function getCurrentConversationId() {
+  let conversationId = localStorage.getItem("currentConversationId");
+
+  if (!conversationId) {
+    const conversation = await createConversation("Nova conversa");
+    conversationId = conversation.id;
+    localStorage.setItem("currentConversationId", conversationId);
+  }
+
+  return conversationId;
+}
+
+// Carrega as mensagens salvas no Supabase para a conversa atual.
+// Se a conversa estiver vazia, cria a mensagem inicial no localStorage e no banco.
+async function loadConversationFromSupabase() {
+  const conversationId = await getCurrentConversationId();
+  const messages = await getMessages(conversationId);
+
+  if (messages.length === 0) {
+    const initialMessage = {
+      role: "assistant",
+      content:
+        "Olá! Me diga sobre qual assunto você quer conversar e eu vou me adaptar ao contexto."
+    };
+
+    saveChatHistory([initialMessage]);
+    await saveMessage(conversationId, initialMessage.role, initialMessage.content);
+    return;
+  }
+
+  // O Supabase retorna colunas de banco. Aqui convertemos para o formato
+  // que o chat ja sabe renderizar: role, content e attachment.
+  const formattedMessages = messages.map((msg) => ({
+    role: msg.role,
+    content: msg.content,
+    attachment: msg.attachment_name
+      ? {
+          name: msg.attachment_name,
+          type: msg.attachment_type
+        }
+      : null
+  }));
+
+  saveChatHistory(formattedMessages);
 }
 
 // Escapa HTML para impedir que texto vire HTML executável.
@@ -572,6 +583,24 @@ async function handleSubmit(event) {
     attachment
   );
 
+  // A mensagem aparece no chat imediatamente pelo localStorage.
+  // Em seguida tentamos salvar no Supabase para manter historico persistente.
+  // Se o Supabase falhar, o chat continua funcionando no navegador.
+  let conversationId = null;
+
+  try {
+    conversationId = await getCurrentConversationId();
+
+    await saveMessage(
+      conversationId,
+      "user",
+      message || `Arquivo enviado: ${file.name}`,
+      attachment
+    );
+  } catch (error) {
+    console.error("Erro ao salvar mensagem do usuario no Supabase:", error);
+  }
+
   // Atualiza a tela
   renderMessages();
 
@@ -622,6 +651,15 @@ async function handleSubmit(event) {
     // Adiciona a resposta da IA no histórico
     addMessage("assistant", reply);
 
+    // Salva tambem a resposta da IA na mesma conversa do Supabase.
+    if (conversationId) {
+      try {
+        await saveMessage(conversationId, "assistant", reply);
+      } catch (error) {
+        console.error("Erro ao salvar resposta da IA no Supabase:", error);
+      }
+    }
+
     // Renderiza a resposta na tela
     renderMessages();
 
@@ -651,7 +689,7 @@ async function handleSubmit(event) {
 }
 
 // Inicializa o chat quando a página carrega
-function initializeChat() {
+async function initializeChat() {
   if (redirectToBackendOriginIfNeeded()) {
     return;
   }
@@ -702,7 +740,13 @@ function initializeChat() {
     document.body.classList.add("sidebar-collapsed");
   }
 
-  // Renderiza mensagens salvas
+  // Carrega mensagens salvas no Supabase e renderiza na tela
+  try {
+    await loadConversationFromSupabase();
+  } catch (error) {
+    console.error("Erro ao carregar conversa do Supabase:", error);
+  }
+
   renderMessages();
 
   // Configura textarea
@@ -747,6 +791,8 @@ function initializeChat() {
 window.clearChat = clearChat;
 window.goBack = goBack;
 window.toggleSidebar = toggleSidebar;
+// Permite usar logout() direto no HTML
+window.logout = logout;
 
 // Inicia tudo quando o HTML carregar.
 document.addEventListener("DOMContentLoaded", initializeChat);

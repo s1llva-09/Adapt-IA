@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Criar Conta | Adapt IA</title>
+  <link rel="stylesheet" href="assets/styles/index.css">
+</head>
+<body class="auth-body">
+  <main class="auth-page">
+    <section class="auth-brand" aria-label="Adapt IA">
+      <span class="brand-pill">Adapt IA</span>
+      <h1>Crie seu acesso ao Adapt IA</h1>
+      <p>Comece com uma conta simples e mantenha seu fluxo pronto para conversar com a IA.</p>
+
+      <div class="brand-panel">
+        <strong>Cadastro rápido</strong>
+        <span>Depois de criar a conta, confirme seu e-mail caso o Supabase solicite.</span>
+      </div>
+    </section>
+
+    <section class="auth-card">
+      <div class="auth-header">
+        <span class="auth-kicker">Primeiro acesso</span>
+        <h2>Criar conta</h2>
+        <p>Preencha os dados abaixo para registrar um novo usuário.</p>
+      </div>
+
+      <form id="registerForm" class="auth-form">
+        <label class="form-group" for="name">
+          <span>Nome</span>
+          <input type="text" id="name" autocomplete="name" placeholder="Seu nome" required>
+        </label>
+
+        <label class="form-group" for="email">
+          <span>E-mail</span>
+          <input type="email" id="email" autocomplete="email" placeholder="voce@email.com" required>
+        </label>
+
+        <label class="form-group" for="password">
+          <span>Senha</span>
+          <input type="password" id="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres" required>
+        </label>
+
+        <label class="form-group" for="confirmPassword">
+          <span>Confirmar senha</span>
+          <input type="password" id="confirmPassword" autocomplete="new-password" placeholder="Repita sua senha" required>
+        </label>
+
+        <button id="registerBtn" class="primary-btn" type="submit">Criar conta</button>
+      </form>
+
+      <p id="message" class="auth-message" aria-live="polite"></p>
+
+      <p class="auth-switch">
+        Já tem uma conta?
+        <a href="login.html">Entrar</a>
+      </p>
+    </section>
+  </main>
+
+  <script type="module" src="assets/js/register.js"></script>
+</body>
+</html>

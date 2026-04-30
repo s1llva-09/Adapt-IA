@@ -3,31 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login | Adapt IA</title>
-
-  <link rel="stylesheet" href="assets/styles/login.css">
+  <title>Entrar | Adapt IA</title>
+  <link rel="stylesheet" href="assets/styles/index.css">
 </head>
-<body>
+<body class="auth-body">
+  <main class="auth-page">
+    <section class="auth-brand" aria-label="Adapt IA">
+      <span class="brand-pill">Adapt IA</span>
+      <h1>Entre no seu chat inteligente</h1>
+      <p>Continue suas conversas, envie arquivos e deixe a IA acompanhar o contexto com você.</p>
 
-  <main class="login-page">
-    <section class="login-card">
-      <h1>Adapt IA</h1>
-      <p>Entre na sua conta para acessar o chat inteligente.</p>
+      <div class="brand-panel">
+        <strong>Ambiente conectado</strong>
+        <span>Seu acesso libera o seletor de IA e o chat multimodal.</span>
+      </div>
+    </section>
 
-      <div class="form-group">
-        <label for="email">E-mail</label>
-        <input type="email" id="email" placeholder="Digite seu e-mail">
+    <section class="auth-card">
+      <div class="auth-header">
+        <span class="auth-kicker">Bem-vindo de volta</span>
+        <h2>Entrar</h2>
+        <p>Use seu e-mail e senha para acessar sua conta.</p>
       </div>
 
-      <div class="form-group">
-        <label for="password">Senha</label>
-        <input type="password" id="password" placeholder="Digite sua senha">
-      </div>
+      <form id="loginForm" class="auth-form">
+        <label class="form-group" for="email">
+          <span>E-mail</span>
+          <input type="email" id="email" autocomplete="email" placeholder="voce@email.com" required>
+        </label>
 
-      <button id="loginBtn" class="primary-btn">Entrar</button>
-      <button id="signupBtn" class="secondary-btn">Criar conta</button>
+        <label class="form-group" for="password">
+          <span>Senha</span>
+          <input type="password" id="password" autocomplete="current-password" placeholder="Digite sua senha" required>
+        </label>
 
-      <p id="message" class="message"></p>
+        <button id="loginBtn" class="primary-btn" type="submit">Entrar</button>
+      </form>
+
+      <p id="message" class="auth-message" aria-live="polite"></p>
+
+      <p class="auth-switch">
+        Ainda não tem conta?
+        <a href="register.html">Criar conta</a>
+      </p>
     </section>
   </main>
 

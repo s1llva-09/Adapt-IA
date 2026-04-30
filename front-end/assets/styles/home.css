@@ -1,0 +1,82 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+}
+
+.card-page {
+  width: 100%;
+  max-width: 1050px;
+  padding: 42px;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.card-page h1 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+}
+
+.card-page > p {
+  max-width: 650px;
+  margin-bottom: 30px;
+  color: var(--text-soft);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 22px;
+}
+
+.choice-card {
+  min-height: 180px;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: linear-gradient(
+    180deg,
+    rgba(30, 41, 59, 0.95),
+    rgba(15, 23, 42, 0.95)
+  );
+  color: var(--text);
+  text-align: left;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.choice-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 18px 35px rgba(37, 99, 235, 0.18);
+}
+
+.choice-card h2 {
+  margin-bottom: 10px;
+  font-size: 1.7rem;
+}
+
+.choice-card p {
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+  .card-page {
+    padding: 28px 20px;
+    border-radius: 22px;
+  }
+
+  .card-page h1 {
+    font-size: 2rem;
+  }
+}

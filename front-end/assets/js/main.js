@@ -5,6 +5,9 @@
 // qual IA usar (OpenAI ou Gemini). Depois de escolher, salva
 // a preferência e redireciona para a página de chat.
 // ============================================================
+//acessa as paginas apenas se estiver logado
+import { protectPage } from "./auth.js";
+protectPage();
 
 // ============================================================
 // FUNÇÃO: CRIAR MENSAGEM INICIAL

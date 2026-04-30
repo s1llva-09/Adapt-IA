@@ -1,12 +1,7 @@
-.card-page h1 {
-  font-size: 2.5rem;
-  margin-bottom: 10px;
-}
+/* Arquivo principal de estilos.
+   As paginas importam apenas este arquivo, e ele organiza os CSS por modulo. */
 
-.card-page > p {
-  max-width: 650px;
-  color: var(--text-soft);
-  line-height: 1.7;
-  margin-bottom: 30px;
-  font-size: 1.05rem;
-}
+@import url("./global.css");
+@import url("./home.css");
+@import url("./chat.css");
+@import url("./login.css");
