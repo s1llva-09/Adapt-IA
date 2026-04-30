@@ -1,4 +1,4 @@
-// Cliente oficial do Supabase carregado via CDN.
+// Cliente oficial do Supabase carregado
 // Ele permite usar auth, tabelas, insert, select, update e delete no front-end.
 import { createClient } from "https://esm.sh/@supabase/supabase-js";
 
