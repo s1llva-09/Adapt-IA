@@ -49,7 +49,7 @@ const { extractFileContent, isImageFile } = require("./services/fileService");
 const { analyzeImageWithGemini } = require("./services/visionService");
 
 // Serviço que usa Gemini para analisar documentos PDF completos
-const { analyzePdfWithGemini } = require("./services/documentService");
+const { analyzePdfWithGemini } = require("./services/documentService.JS");
 
 // ----------------------------------------------------------
 // CRIAÇÃO DA APLICAÇÃO EXPRESS
