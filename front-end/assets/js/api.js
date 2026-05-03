@@ -19,6 +19,10 @@ console.log("API.JS NOVO CARREGADO");
 // - Pode estar em outro IP da rede local
 // - Pode ter sido salvo anteriormente pelo usuário
 
+function isLocalHost(hostname = window.location.hostname) {
+  return ["localhost", "127.0.0.1", "0.0.0.0"].includes(hostname);
+}
+
 function getApiCandidates() {
   const candidates = [];
   const seen = new Set(); // Para evitar URLs duplicadas
@@ -39,13 +43,13 @@ function getApiCandidates() {
 
   // Detecta se está rodando via HTTP (não via file://)
   if (window.location.protocol.startsWith("http")) {
-    // Se já está na porta 3000, usa a mesma origem
-    if (window.location.port === "3000") {
-      addCandidate(window.location.origin);
-    }
+    // Em produção (Render), o front e o backend ficam no mesmo domínio.
+    // Por isso a origem atual precisa ser testada antes de tentar :3000.
+    addCandidate(window.location.origin);
 
-    // Tenta usando o hostname atual (útil para rede local)
-    if (window.location.hostname) {
+    // Em desenvolvimento, quando o Live Server roda em outra porta,
+    // tenta falar com o backend local na porta 3000.
+    if (isLocalHost() && window.location.hostname) {
       addCandidate(`http://${window.location.hostname}:3000`);
     }
   }

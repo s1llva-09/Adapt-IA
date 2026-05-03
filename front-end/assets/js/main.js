@@ -26,6 +26,12 @@ function getInitialHistory() {
   ];
 }
 
+function isLocalHost() {
+  return ["localhost", "127.0.0.1", "0.0.0.0"].includes(
+    window.location.hostname
+  );
+}
+
 // ============================================================
 // FUNÇÃO: REDIRECIONAR PARA CHAT (CROSS-ORIGIN)
 // ============================================================
@@ -65,8 +71,9 @@ function selectProvider(provider) {
   // Cria histórico inicial com mensagem de boas-vindas
   const initialHistory = getInitialHistory();
 
-  // Verifica se está rodando via HTTP e não na porta do backend
+  // Verifica se está rodando localmente via HTTP e não na porta do backend
   if (
+    isLocalHost() &&
     window.location.protocol.startsWith("http") &&
     window.location.port !== "3000"
   ) {

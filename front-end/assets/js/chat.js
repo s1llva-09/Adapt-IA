@@ -17,6 +17,12 @@ function getBackendOrigin() {
   return `http://${hostname}:3000`;
 }
 
+function isLocalHost() {
+  return ["localhost", "127.0.0.1", "0.0.0.0"].includes(
+    window.location.hostname
+  );
+}
+
 function getTransferState() {
   try {
     const parsed = JSON.parse(window.name || "{}");
@@ -65,6 +71,7 @@ function restoreTransferState() {
 
 function redirectToBackendOriginIfNeeded() {
   if (!window.location.protocol.startsWith("http")) return false;
+  if (!isLocalHost()) return false;
   if (window.location.port === "3000") return false;
 
   saveTransferState();
