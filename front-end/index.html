@@ -10,23 +10,77 @@
 <body class="home-body">
   <main class="container">
     <section class="card-page">
-      <h1>Escolha sua IA</h1>
+      <h1>Escolha seu auxiliar empresarial</h1>
       <p>
-        Selecione o provedor para iniciar um chat moderno, adaptável e com contexto inteligente.
+        Selecione o especialista que vai guiar a conversa. O provedor da IA
+        continua disponível como motor de resposta.
       </p>
 
-      <div class="cards">
-        <button class="choice-card" onclick="selectProvider('openai')">
-          <h2>OpenAI</h2>
+      <section class="provider-selector" aria-labelledby="providerTitle">
+        <div>
+          <h2 id="providerTitle">Motor da IA</h2>
           <p>
-            Use OpenAI com fallback automático quando necessário, mantendo a conversa fluida.
+            Escolha qual tecnologia vai gerar as respostas.
+          </p>
+        </div>
+
+        <div class="provider-options" aria-label="Escolha do provedor">
+          <button class="provider-option is-selected" type="button" data-provider="gemini">
+            Gemini
+          </button>
+
+          <button class="provider-option" type="button" data-provider="openai">
+            OpenAI
+          </button>
+        </div>
+      </section>
+
+      <div class="cards assistant-cards" aria-label="Auxiliares empresariais">
+        <button class="choice-card" type="button" data-assistant="financial_management">
+          <span class="choice-card-kicker">Financeiro</span>
+          <h2>Gestão Financeira</h2>
+          <p>
+            Fluxo de caixa, contas a pagar, contas a receber, custos, precificação e relatórios.
           </p>
         </button>
 
-        <button class="choice-card" onclick="selectProvider('gemini')">
-          <h2>Gemini</h2>
+        <button class="choice-card" type="button" data-assistant="personal_department">
+          <span class="choice-card-kicker">DP</span>
+          <h2>Departamento Pessoal</h2>
           <p>
-            Use Gemini para respostas rápidas, gratuitas e bem adaptadas ao contexto.
+            Admissões, demissões, folha, férias, ponto, benefícios e documentos.
+          </p>
+        </button>
+
+        <button class="choice-card" type="button" data-assistant="human_resources">
+          <span class="choice-card-kicker">RH</span>
+          <h2>Recursos Humanos</h2>
+          <p>
+            Recrutamento, clima, treinamento, desempenho, cargos e cultura organizacional.
+          </p>
+        </button>
+
+        <button class="choice-card" type="button" data-assistant="commercial_sales">
+          <span class="choice-card-kicker">Comercial</span>
+          <h2>Comercial e Vendas</h2>
+          <p>
+            Prospecção, CRM, propostas, negociação, follow-up e análise do funil.
+          </p>
+        </button>
+
+        <button class="choice-card" type="button" data-assistant="customer_service">
+          <span class="choice-card-kicker">Atendimento</span>
+          <h2>Atendimento ao Cliente</h2>
+          <p>
+            Scripts, suporte, pós-venda, padrões de resposta e experiência do cliente.
+          </p>
+        </button>
+
+        <button class="choice-card" type="button" data-assistant="operations">
+          <span class="choice-card-kicker">Operações</span>
+          <h2>Operações</h2>
+          <p>
+            Processos, rotinas internas, indicadores, produtividade e melhoria contínua.
           </p>
         </button>
       </div>

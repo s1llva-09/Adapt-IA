@@ -62,6 +62,17 @@
   font-weight: 700;
 }
 
+.info-box-detail {
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+.info-box-detail span {
+  margin-top: 0;
+  color: #93c5fd;
+  font-size: 0.9rem;
+}
+
 .sidebar-actions {
   display: flex;
   flex-direction: column;
