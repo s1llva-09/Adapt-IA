@@ -10,9 +10,9 @@
 <body class="home-body">
   <main class="container">
     <section class="card-page">
-      <h1>Escolha seu auxiliar empresarial</h1>
+      <h1>Escolha seu agente empresarial</h1>
       <p>
-        Selecione o especialista que vai guiar a conversa. O provedor da IA
+        Selecione o agente especialista que vai guiar a conversa. O provedor da IA
         continua disponível como motor de resposta.
       </p>
 
@@ -35,8 +35,8 @@
         </div>
       </section>
 
-      <div class="cards assistant-cards" aria-label="Auxiliares empresariais">
-        <button class="choice-card" type="button" data-assistant="financial_management">
+      <div class="cards agent-cards" aria-label="Agentes empresariais">
+        <button onclick="abrirGestaoFinanceira()" class="choice-card" type="button" data-agent="financial_management">
           <span class="choice-card-kicker">Financeiro</span>
           <h2>Gestão Financeira</h2>
           <p>
@@ -44,7 +44,7 @@
           </p>
         </button>
 
-        <button class="choice-card" type="button" data-assistant="personal_department">
+        <button class="choice-card" type="button" data-agent="personal_department">
           <span class="choice-card-kicker">DP</span>
           <h2>Departamento Pessoal</h2>
           <p>
@@ -52,7 +52,7 @@
           </p>
         </button>
 
-        <button class="choice-card" type="button" data-assistant="human_resources">
+        <button class="choice-card" type="button" data-agent="human_resources">
           <span class="choice-card-kicker">RH</span>
           <h2>Recursos Humanos</h2>
           <p>
@@ -60,7 +60,7 @@
           </p>
         </button>
 
-        <button class="choice-card" type="button" data-assistant="commercial_sales">
+        <button class="choice-card" type="button" data-agent="commercial_sales">
           <span class="choice-card-kicker">Comercial</span>
           <h2>Comercial e Vendas</h2>
           <p>
@@ -68,7 +68,7 @@
           </p>
         </button>
 
-        <button class="choice-card" type="button" data-assistant="customer_service">
+        <button class="choice-card" type="button" data-agent="customer_service">
           <span class="choice-card-kicker">Atendimento</span>
           <h2>Atendimento ao Cliente</h2>
           <p>
@@ -76,7 +76,7 @@
           </p>
         </button>
 
-        <button class="choice-card" type="button" data-assistant="operations">
+        <button class="choice-card" type="button" data-agent="operations">
           <span class="choice-card-kicker">Operações</span>
           <h2>Operações</h2>
           <p>

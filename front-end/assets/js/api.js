@@ -132,7 +132,7 @@ async function fetchWithFallback(path, options) {
 // Envia uma mensagem de texto simples para o backend.
 // Não inclui arquivos, apenas conversa por texto.
 
-export async function sendMessage(provider, message, history) {
+export async function sendMessage(provider, assistantType, message, history, memories = []) {
   // Faz requisição POST para /chat
   const response = await fetchWithFallback("/chat", {
     method: "POST",
@@ -140,9 +140,11 @@ export async function sendMessage(provider, message, history) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      provider,  // "openai" ou "gemini"
-      message,   // Texto enviado pelo usuário
-      history    // Array com histórico da conversa
+      provider,      // "openai" ou "gemini"
+      assistantType, // agente empresarial escolhido; ex: financial_management
+      message,       // Texto enviado pelo usuário
+      history,       // Array com histórico da conversa atual
+      memories       // Memorias persistentes do agente, vindas do Supabase
     })
   });
 
@@ -164,14 +166,17 @@ export async function sendMessage(provider, message, history) {
 // Envia um arquivo (imagem, PDF, texto) junto com uma mensagem.
 // Usa FormData para enviar arquivos via POST.
 
-export async function uploadFile(provider, message, history, file) {
+export async function uploadFile(provider, assistantType, message, history, file, memories = []) {
   // Cria FormData para envio multipart/form-data
   const formData = new FormData();
 
   // Adiciona campos ao FormData
   formData.append("provider", provider);  // IA selecionada
+  // Envia o agente junto com o arquivo para o backend manter o mesmo contexto.
+  formData.append("assistantType", assistantType); // ex: financial_management
   formData.append("message", message);    // Mensagem opcional
   formData.append("history", JSON.stringify(history)); // Histórico (serializado)
+  formData.append("memories", JSON.stringify(memories)); // Memorias persistentes
   formData.append("file", file);          // O arquivo em si
 
   // Faz requisição POST para /upload
@@ -192,4 +197,45 @@ export async function uploadFile(provider, message, history, file) {
   }
 
   return data;
+}
+
+// ============================================================
+// FUNÇÃO: EXTRAIR MEMÓRIA DA CONVERSA
+// ============================================================
+// Depois que a IA responde, esta função pergunta ao backend se aquela
+// interação contém algum aprendizado duradouro sobre o usuário/empresa.
+// Exemplo de memória boa:
+// "O usuário acompanha fluxo de caixa semanalmente."
+// Exemplo que NÃO deve virar memória:
+// "O usuário perguntou o que é fluxo de caixa."
+
+export async function extractMemory(
+  provider,
+  assistantType,
+  userMessage,
+  assistantReply,
+  history = []
+) {
+  const response = await fetchWithFallback("/memory/extract", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      provider,
+      assistantType,
+      userMessage,
+      assistantReply,
+      history
+    })
+  });
+
+  const data = await parseResponse(response);
+
+  if (!response.ok) {
+    console.error("Erro vindo do /memory/extract:", data);
+    throw new Error(data.error || "Erro ao extrair memória.");
+  }
+
+  return data.memory || null;
 }

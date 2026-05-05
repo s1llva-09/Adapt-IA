@@ -15,14 +15,15 @@ async function getLoggedUser() {
 
 // Cria uma conversa nova na tabela "conversations".
 // Retorna o registro criado, incluindo o id usado para salvar as mensagens.
-export async function createConversation(title = "Nova conversa") {
+export async function createConversation(title = "Nova conversa", assistantType = "general") {
   const user = await getLoggedUser();
 
   const { data, error } = await supabase
     .from("conversations")
     .insert({
       user_id: user.id,
-      title
+      title,
+      assistant_type: assistantType
     })
     .select()
     .single();
@@ -46,6 +47,24 @@ export async function getConversations() {
   if (error) throw error;
 
   return data || [];
+}
+
+// Busca uma conversa específica do usuário logado.
+// Isso serve para validar se o currentConversationId salvo no navegador
+// ainda existe no Supabase antes de salvar mensagens nele.
+export async function getConversationById(conversationId) {
+  const user = await getLoggedUser();
+
+  const { data, error } = await supabase
+    .from("conversations")
+    .select("*")
+    .eq("id", conversationId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data || null;
 }
 
 // Salva uma mensagem na tabela "messages".
@@ -96,4 +115,46 @@ export async function deleteConversation(conversationId) {
   if (error) throw error;
 
   return true;
+}
+
+// Salva uma memoria persistente do agente.
+// Diferente de messages, isso nao representa uma fala da conversa atual.
+// Aqui ficam aprendizados duradouros, por exemplo:
+// "O usuario acompanha fluxo de caixa semanalmente".
+export async function saveMemory(assistantType, content, conversationId = null) {
+  const user = await getLoggedUser();
+
+  const { data, error } = await supabase
+    .from("memories")
+    .insert({
+      user_id: user.id,
+      assistant_type: assistantType,
+      content,
+      source_conversation_id: conversationId
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
+}
+
+// Busca as memorias persistentes do usuario para o agente atual.
+// O chat envia essas memorias ao backend para a IA responder com contexto
+// de conversas anteriores, mesmo quando a conversa atual foi limpa.
+export async function getMemories(assistantType) {
+  const user = await getLoggedUser();
+
+  const { data, error } = await supabase
+    .from("memories")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("assistant_type", assistantType)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (error) throw error;
+
+  return data || [];
 }

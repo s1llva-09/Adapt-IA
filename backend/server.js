@@ -105,9 +105,39 @@ console.log("GEMINI:", process.env.GEMINI_API_KEY ? "OK" : "NÃO ENCONTRADA");
 // Define o comportamento padrão do assistente de IA
 // Este texto é enviado junto com cada requisição para
 // instruir a IA sobre como deve se comportar
-function getSystemPrompt() {
+function getSystemPrompt(assistantType, memories = []) {
+  // Transforma os registros da tabela memories em texto simples para o prompt.
+  // Cada memoria tem content, assistant_type, user_id etc.; aqui usamos apenas content.
+  const memoryText = Array.isArray(memories) && memories.length > 0
+    ? memories.map((memory) => `- ${memory.content}`).join("\n")
+    : "Nenhuma memória persistente registrada ainda.";
+
+  // Se o front-end enviou financial_management, o backend troca o papel
+  // da IA para um agente especializado em gestão financeira empresarial.
+  if (assistantType === "financial_management") {
+    return `
+Você é um agente especialista em gestão financeira empresarial.
+
+Memórias persistentes do usuário:
+${memoryText}
+
+Regras:
+- Ajude com fluxo de caixa, contas a pagar, contas a receber, custos, precificação, relatórios e tomada de decisão.
+- Organize respostas em passos práticos quando o usuário pedir orientação.
+- Se faltarem dados financeiros, faça perguntas objetivas antes de concluir.
+- Não invente números, impostos ou regras específicas sem base no conteúdo recebido.
+- Quando houver risco contábil, fiscal ou jurídico, recomende validação com profissional responsável.
+- Responda sempre no idioma do usuário.
+- Seja claro, profissional e útil.
+    `.trim();
+  }
+
+  // Prompt padrão usado quando nenhum agente específico foi escolhido.
   return `
 Você é um assistente inteligente, adaptável e multimodal.
+
+Memórias persistentes do usuário:
+${memoryText}
 
 Regras:
 - Entenda o contexto pela conversa.
@@ -122,6 +152,76 @@ Regras:
 }
 
 // ----------------------------------------------------------
+// EXTRAÇÃO DE MEMÓRIA
+// ----------------------------------------------------------
+// A memória persistente é diferente do histórico da conversa.
+// Ela guarda fatos estáveis sobre o usuário/empresa para conversas futuras.
+
+function buildMemoryExtractionMessages({
+  assistantType,
+  userMessage,
+  assistantReply,
+  history = []
+}) {
+  const recentHistory = Array.isArray(history)
+    ? history.slice(-6).map((msg) => `${msg.role}: ${msg.content}`).join("\n")
+    : "";
+
+  return [
+    {
+      role: "system",
+      content: `
+Você decide se uma interação deve gerar UMA memória persistente para um agente empresarial.
+
+Salve memória apenas quando houver informação duradoura sobre o usuário, empresa, preferência, objetivo, rotina, números importantes ou contexto recorrente.
+Não salve perguntas genéricas, comandos momentâneos, elogios, saudações ou respostas sem valor futuro.
+
+Retorne somente JSON válido, sem markdown:
+{"memory":"texto curto da memória"}
+ou
+{"memory":null}
+      `.trim()
+    },
+    {
+      role: "user",
+      content: `
+Agente: ${assistantType || "general"}
+
+Histórico recente:
+${recentHistory || "Sem histórico anterior."}
+
+Mensagem do usuário:
+${userMessage}
+
+Resposta da IA:
+${assistantReply}
+      `.trim()
+    }
+  ];
+}
+
+function parseExtractedMemory(rawText) {
+  const text = String(rawText || "")
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const jsonText = text.match(/\{[\s\S]*\}/)?.[0] || text;
+
+  try {
+    const parsed = JSON.parse(jsonText);
+    const memory = typeof parsed.memory === "string" ? parsed.memory.trim() : null;
+
+    if (!memory || memory.length < 12) return null;
+
+    return memory;
+  } catch (error) {
+    console.error("Erro ao interpretar memória extraída:", error);
+    return null;
+  }
+}
+
+// ----------------------------------------------------------
 // ROTA DE HEALTH CHECK
 // ----------------------------------------------------------
 // Endpoint simples para verificar se o servidor está online
@@ -132,6 +232,60 @@ app.get("/health", (req, res) => {
     status: "ok",
     service: "adapt-ia-backend"
   });
+});
+
+// ----------------------------------------------------------
+// ROTA DE EXTRAÇÃO DE MEMÓRIA
+// ----------------------------------------------------------
+// O front chama esta rota depois que a IA responde.
+// Ela usa a própria IA para decidir se a interação gerou algum
+// aprendizado persistente que deve ser salvo na tabela memories.
+
+app.post("/memory/extract", async (req, res) => {
+  try {
+    const {
+      provider,
+      assistantType,
+      userMessage,
+      assistantReply,
+      history = []
+    } = req.body;
+
+    if (!assistantType || !userMessage || !assistantReply) {
+      return res.json({ memory: null });
+    }
+
+    const messages = buildMemoryExtractionMessages({
+      assistantType,
+      userMessage,
+      assistantReply,
+      history
+    });
+
+    let rawMemoryResponse;
+
+    if (provider === "openai") {
+      try {
+        rawMemoryResponse = await sendToOpenAI(messages);
+      } catch (error) {
+        console.log("OpenAI falhou na memória, usando Gemini...");
+        rawMemoryResponse = await sendToGemini(messages);
+      }
+    } else {
+      rawMemoryResponse = await sendToGemini(messages);
+    }
+
+    const memory = parseExtractedMemory(rawMemoryResponse);
+
+    return res.json({ memory });
+  } catch (error) {
+    console.error("Erro no /memory/extract:", error);
+
+    return res.status(500).json({
+      memory: null,
+      error: error.message
+    });
+  }
 });
 
 // ----------------------------------------------------------
@@ -155,7 +309,13 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     // provider: Qual IA usar (gemini ou openai)
     // message: Texto opcional digitado pelo usuário
     // history: Histórico da conversa (vem como string JSON)
-    const { provider, message = "Analise este arquivo.", history = "[]" } = req.body;
+    const {
+      provider,
+      assistantType,
+      message = "Analise este arquivo.",
+      history = "[]",
+      memories = "[]"
+    } = req.body;
 
     // --------------------------------------------------------
     // VALIDAÇÃO
@@ -174,6 +334,27 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const parsedHistory = JSON.parse(history);
     console.log("Histórico convertido OK");
 
+    // As memorias também chegam como JSON string no FormData.
+    // Se vierem vazias ou inválidas, usa array vazio para não quebrar upload.
+    let parsedMemories = [];
+
+    try {
+      parsedMemories = JSON.parse(memories);
+    } catch (error) {
+      console.error("Erro ao converter memorias:", error);
+    }
+
+    // Cria o prompt correto de acordo com o agente recebido.
+    // Para imagens e PDFs, juntamos esse prompt ao pedido do usuário,
+    // porque esses serviços recebem uma instrução em texto simples.
+    const systemPromptText = getSystemPrompt(assistantType, parsedMemories);
+    const messageWithContext = `
+${systemPromptText}
+
+Pedido do usuário:
+${message}
+    `.trim();
+
     // --------------------------------------------------------
     // VARIÁVEL PARA RESPOSTA FINAL
     // --------------------------------------------------------
@@ -187,14 +368,14 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     if (req.file.mimetype === "application/pdf") {
       console.log("PDF detectado → enviando para Gemini completo");
       // Usa serviço especializado que faz OCR completo no PDF
-      reply = await analyzePdfWithGemini(req.file, message);
+      reply = await analyzePdfWithGemini(req.file, messageWithContext);
       console.log("PDF analisado OK");
     }
     // CASO 2: ARQUIVO É UMA IMAGEM
     else if (req.file.mimetype.startsWith("image/")) {
       console.log("Imagem detectada → OCR Gemini");
       // Usa serviço de visão para extrair texto e descrever imagem
-      reply = await analyzeImageWithGemini(req.file, message);
+      reply = await analyzeImageWithGemini(req.file, messageWithContext);
       console.log("Imagem analisada OK");
     }
     // CASO 3: OUTROS ARQUIVOS (txt, csv, código, etc)
@@ -205,6 +386,12 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
       // Monta mensagens para enviar à IA
       const messages = [
+        {
+          role: "system",
+          // Para arquivos de texto/código, o contexto do agente entra
+          // como mensagem system, igual acontece na rota /chat.
+          content: systemPromptText
+        },
         ...parsedHistory, // mantém histórico anterior para contexto
         {
           role: "user",
@@ -257,12 +444,22 @@ ${fileContent}
 app.post("/chat", async (req, res) => {
   try {
     // Extrai dados enviados pelo front-end
-    const { provider, message, history = [] } = req.body;
+    // assistantType define qual agente deve responder.
+    // Exemplo atual: financial_management.
+    const {
+      provider,
+      assistantType,
+      message,
+      history = [],
+      memories = []
+    } = req.body;
 
     // Log de debug para rastreamento
     console.log("Provider recebido:", provider);
+    console.log("Agente recebido:", assistantType);
     console.log("Message recebida:", message);
     console.log("History recebida:", history);
+    console.log("Memorias recebidas:", memories);
 
     // --------------------------------------------------------
     // VALIDAÇÃO BÁSICA
@@ -279,7 +476,9 @@ app.post("/chat", async (req, res) => {
     // Cria prompt de sistema com regras de comportamento
     const systemPrompt = {
       role: "system",
-      content: getSystemPrompt()
+      // Aqui é onde o agente realmente muda o comportamento da IA.
+      // As memorias entram junto para manter aprendizado de conversas anteriores.
+      content: getSystemPrompt(assistantType, memories)
     };
 
     // Junta: prompt do sistema + histórico + mensagem atual

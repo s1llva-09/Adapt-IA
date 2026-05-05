@@ -8,8 +8,8 @@
 
 .card-page {
   width: 100%;
-  max-width: 1050px;
-  padding: 42px;
+  max-width: 980px;
+  padding: 34px;
   border: 1px solid var(--border);
   border-radius: 28px;
   background: rgba(15, 23, 42, 0.9);
@@ -18,7 +18,7 @@
 }
 
 .card-page h1 {
-  font-size: 2.5rem;
+  font-size: 2.25rem;
   margin-bottom: 10px;
 }
 
@@ -35,8 +35,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 24px;
-  padding: 16px;
+  margin-bottom: 20px;
+  padding: 14px;
   border: 1px solid var(--border);
   border-radius: 18px;
   background: rgba(8, 17, 32, 0.62);
@@ -59,8 +59,8 @@
 }
 
 .provider-option {
-  min-width: 104px;
-  padding: 11px 16px;
+  min-width: 96px;
+  padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: 14px;
   outline: none;
@@ -93,13 +93,13 @@
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .choice-card {
-  min-height: 180px;
-  padding: 28px;
+  min-height: 145px;
+  padding: 22px;
   border: 1px solid var(--border);
   border-radius: 22px;
   background: linear-gradient(
@@ -122,15 +122,15 @@
 }
 
 .choice-card h2 {
-  margin-bottom: 10px;
-  font-size: 1.7rem;
+  margin-bottom: 8px;
+  font-size: 1.35rem;
 }
 
 .choice-card-kicker {
   display: inline-block;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   color: #93c5fd;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -138,6 +138,7 @@
 
 .choice-card p {
   color: var(--text-soft);
+  font-size: 0.95rem;
   line-height: 1.6;
 }
 

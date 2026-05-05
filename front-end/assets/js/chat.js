@@ -1,16 +1,23 @@
 console.log("CHAT.JS NOVO CARREGADO");
 // Importa as funções que conversam com o backend.
-import { sendMessage, uploadFile } from "./api.js";
+import { extractMemory, sendMessage, uploadFile } from "./api.js";
 import { protectPage, logout } from "./auth.js";
 import {
   createConversation,
+  getConversationById,
   getMessages,
+  getMemories,
+  saveMemory,
   saveMessage
 } from "./database.js";
 
 // Garante que apenas usuarios logados acessem o chat.
 // Se nao houver sessao ativa no Supabase, auth.js redireciona para login.html.
 protectPage();
+
+// Mesmo identificador usado no main.js e no server.js.
+// Ele diz que o usuário escolheu o agente de Gestão Financeira.
+const FINANCIAL_ASSISTANT_TYPE = "financial_management";
 
 function getBackendOrigin() {
   const hostname = window.location.hostname || "127.0.0.1";
@@ -43,6 +50,8 @@ function saveTransferState() {
     window.name = JSON.stringify({
       adaptIaTransfer: {
         provider: getProvider(),
+        // Leva o agente junto no redirect entre Live Server e backend local.
+        assistantType: getAssistantType(),
         chatHistory: history
       }
     });
@@ -58,6 +67,11 @@ function restoreTransferState() {
 
   if (transferState.provider && !localStorage.getItem("provider")) {
     localStorage.setItem("provider", transferState.provider);
+  }
+
+  if (transferState.assistantType && !localStorage.getItem("assistantType")) {
+    // Restaura o agente salvo antes do redirecionamento.
+    localStorage.setItem("assistantType", transferState.assistantType);
   }
 
   const hasLocalHistory = getChatHistory().length > 0;
@@ -87,11 +101,32 @@ function getProvider() {
   return localStorage.getItem("provider");
 }
 
+// Retorna o agente empresarial escolhido.
+function getAssistantType() {
+  // Valor salvo ao clicar no card de Gestão Financeira.
+  return localStorage.getItem("assistantType");
+}
+
 // Converte o valor técnico em nome bonito para exibir na tela.
 function getProviderLabel(value) {
   if (value === "openai") return "OpenAI";
   if (value === "gemini") return "Gemini";
   return "-";
+}
+
+function getAgentLabel(value) {
+  // Nome amigável mostrado na sidebar.
+  if (value === FINANCIAL_ASSISTANT_TYPE) return "Gestão Financeira";
+  return "Assistente Geral";
+}
+
+function getInitialAssistantMessage(value) {
+  // Mensagem inicial muda conforme o agente escolhido.
+  if (value === FINANCIAL_ASSISTANT_TYPE) {
+    return "Olá! Sou seu agente de Gestão Financeira. Posso ajudar com fluxo de caixa, contas a pagar, contas a receber, custos, precificação e relatórios.";
+  }
+
+  return "Olá! Me diga sobre qual assunto você quer conversar e eu vou me adaptar ao contexto.";
 }
 
 // Busca o histórico salvo no localStorage.
@@ -147,11 +182,26 @@ function getConversationHistory() {
 async function getCurrentConversationId() {
   let conversationId = localStorage.getItem("currentConversationId");
 
-  if (!conversationId) {
-    const conversation = await createConversation("Nova conversa");
-    conversationId = conversation.id;
-    localStorage.setItem("currentConversationId", conversationId);
+  // O localStorage pode guardar um id antigo de conversa que ja foi apagada
+  // no Supabase. Se usarmos esse id, o insert em messages quebra por FK.
+  // Por isso validamos se a conversa ainda existe antes de reutilizar.
+  if (conversationId) {
+    const existingConversation = await getConversationById(conversationId);
+
+    if (existingConversation) {
+      return conversationId;
+    }
+
+    localStorage.removeItem("currentConversationId");
   }
+
+  const conversation = await createConversation(
+    getAgentLabel(getAssistantType()),
+    getAssistantType()
+  );
+
+  conversationId = conversation.id;
+  localStorage.setItem("currentConversationId", conversationId);
 
   return conversationId;
 }
@@ -165,8 +215,7 @@ async function loadConversationFromSupabase() {
   if (messages.length === 0) {
     const initialMessage = {
       role: "assistant",
-      content:
-        "Olá! Me diga sobre qual assunto você quer conversar e eu vou me adaptar ao contexto."
+      content: getInitialAssistantMessage(getAssistantType())
     };
 
     saveChatHistory([initialMessage]);
@@ -480,10 +529,15 @@ function removeTyping() {
 
 // Limpa a conversa.
 function clearChat() {
+  // Limpar conversa nao apaga memorias persistentes.
+  // Apenas remove o id da conversa atual para a proxima mensagem criar
+  // uma nova conversa no Supabase.
+  localStorage.removeItem("currentConversationId");
+
   const initialHistory = [
     {
       role: "assistant",
-      content: "Conversa limpa. Sobre o que vamos falar agora?"
+      content: getInitialAssistantMessage(getAssistantType())
     }
   ];
 
@@ -565,11 +619,15 @@ async function handleSubmit(event) {
   // Pega a IA escolhida: openai ou gemini
   const provider = getProvider();
 
+  // Pega o agente escolhido: por enquanto, financial_management.
+  const assistantType = getAssistantType();
+
   console.log("HANDLE SUBMIT CHAMADO");
   console.log("Arquivo selecionado:", file);
 
-  // Se não tiver input ou provider, para a função
-  if (!input || !provider) return;
+  // Se faltar input, provider ou agente, para a função.
+  // Isso evita mandar mensagem sem contexto de qual agente deve responder.
+  if (!input || !provider || !assistantType) return;
 
   // Pega a mensagem digitada
   const message = input.value.trim();
@@ -621,15 +679,22 @@ async function handleSubmit(event) {
   try {
     let data;
 
+    // Busca as memorias persistentes do agente atual antes de chamar a IA.
+    // Essas memorias vêm da tabela "memories" e não somem ao limpar conversa.
+    const memories = await getMemories(assistantType);
+
     // Se tiver arquivo, usa uploadFile
     if (file) {
       console.log("ENVIANDO ARQUIVO PARA BACKEND");
 
       data = await uploadFile(
         provider,
+        // Envia o agente para o backend analisar o arquivo no papel correto.
+        assistantType,
         message || "Analise este arquivo.",
         historyBeforeSubmit,
-        file
+        file,
+        memories
       );
 
       console.log("RESPOSTA DO UPLOAD:", data);
@@ -639,8 +704,11 @@ async function handleSubmit(event) {
 
       data = await sendMessage(
         provider,
+        // Envia o agente para o backend montar o prompt financeiro.
+        assistantType,
         message,
-        [...historyBeforeSubmit, { role: "user", content: message }]
+        [...historyBeforeSubmit, { role: "user", content: message }],
+        memories
       );
 
       console.log("RESPOSTA DO CHAT:", data);
@@ -648,8 +716,7 @@ async function handleSubmit(event) {
 
     // Pega a resposta da IA
     const reply = data.reply || "Sem resposta da IA.";
-
-    console.log("REPLY FINAL:", reply);
+    
     console.log("VAI EXIBIR NO CHAT:", reply);
 
     // Remove o carregamento
@@ -664,6 +731,32 @@ async function handleSubmit(event) {
         await saveMessage(conversationId, "assistant", reply);
       } catch (error) {
         console.error("Erro ao salvar resposta da IA no Supabase:", error);
+      }
+    }
+
+    // Depois que a IA respondeu, tentamos transformar a interação em memória.
+    // Isso não salva qualquer mensagem: o backend decide se existe um aprendizado
+    // realmente útil e persistente para o agente atual.
+    if (conversationId) {
+      try {
+        const userMessageForMemory =
+          message || (file ? `Arquivo enviado: ${file.name}` : "");
+
+        const memory = await extractMemory(
+          provider,
+          assistantType,
+          userMessageForMemory,
+          reply,
+          historyBeforeSubmit
+        );
+
+        if (memory) {
+          await saveMemory(assistantType, memory, conversationId);
+          console.log("Memória salva:", memory);
+        }
+      } catch (error) {
+        // Falha ao salvar memória não deve impedir o chat de funcionar.
+        console.error("Erro ao extrair/salvar memória:", error);
       }
     }
 
@@ -706,8 +799,12 @@ async function initializeChat() {
   // Pega o provedor salvo no localStorage
   const provider = getProvider();
 
-  // Pega o label onde aparece Gemini/OpenAI
+  // Pega o agente salvo no localStorage.
+  const assistantType = getAssistantType();
+
+  // Pega os labels da sidebar: motor da IA e agente empresarial.
   const providerLabel = document.getElementById("providerLabel");
+  const agentLabel = document.getElementById("agentLabel");
 
   // Pega o botão de enviar
   const sendButton = document.getElementById("sendButton");
@@ -718,8 +815,9 @@ async function initializeChat() {
   // Pega a área de preview do arquivo
   const filePreview = document.getElementById("filePreview");
 
-  // Se não tiver provider, volta para a tela inicial
-  if (!provider) {
+  // Se não tiver provider ou agente, volta para a tela inicial.
+  // Assim o usuário sempre entra no chat com um agente escolhido.
+  if (!provider || !assistantType) {
     window.location.href = "index.html";
     return;
   }
@@ -729,13 +827,17 @@ async function initializeChat() {
     providerLabel.textContent = getProviderLabel(provider);
   }
 
+  if (agentLabel) {
+    // Mostra "Gestão Financeira" na lateral.
+    agentLabel.textContent = getAgentLabel(assistantType);
+  }
+
   // Se não tiver histórico, cria a primeira mensagem da IA
   if (getChatHistory().length === 0) {
     saveChatHistory([
       {
         role: "assistant",
-        content:
-          "Olá! Me diga sobre qual assunto você quer conversar e eu vou me adaptar ao contexto."
+        content: getInitialAssistantMessage(assistantType)
       }
     ]);
   }
@@ -792,6 +894,7 @@ async function initializeChat() {
       }
     });
   }
+
 }
 
 // Expõe funções usadas no HTML.
