@@ -11,6 +11,31 @@ const confirmPasswordInput = document.getElementById("confirmPassword");
 const registerBtn = document.getElementById("registerBtn");
 const message = document.getElementById("message");
 
+// Configura os botões de olho para mostrar/esconder senha.
+// A tela de cadastro tem dois campos: password e confirmPassword.
+// Cada botão informa qual input controla via data-toggle-password.
+function setupPasswordToggles() {
+  document.querySelectorAll("[data-toggle-password]").forEach((button) => {
+    const inputId = button.dataset.togglePassword;
+    const input = document.getElementById(inputId);
+
+    if (!input) return;
+
+    button.addEventListener("click", () => {
+      const shouldShowPassword = input.type === "password";
+
+      input.type = shouldShowPassword ? "text" : "password";
+      button.classList.toggle("is-visible", shouldShowPassword);
+      button.setAttribute("aria-pressed", String(shouldShowPassword));
+      button.setAttribute(
+        "aria-label",
+        shouldShowPassword ? "Ocultar senha" : "Mostrar senha"
+      );
+      button.title = shouldShowPassword ? "Ocultar senha" : "Mostrar senha";
+    });
+  });
+}
+
 // Mostra feedback abaixo do formulario.
 // O CSS muda a cor de acordo com data-type: info, success ou error.
 function showMessage(text, type = "") {
@@ -62,3 +87,5 @@ registerForm.addEventListener("submit", async (event) => {
     registerForm.reset();
   }
 });
+
+setupPasswordToggles();

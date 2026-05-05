@@ -38,15 +38,41 @@
           <input type="email" id="email" autocomplete="email" placeholder="voce@email.com" required>
         </label>
 
-        <label class="form-group" for="password">
-          <span>Senha</span>
-          <input type="password" id="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres" required>
-        </label>
+        <div class="form-group">
+          <label for="password">Senha</label>
+          <div class="password-field">
+            <input type="password" id="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres" required>
+            <button
+              type="button"
+              class="password-toggle"
+              data-toggle-password="password"
+              aria-label="Mostrar senha"
+              aria-pressed="false"
+              title="Mostrar senha"
+            >
+              <img class="password-icon icon-eye" src="assets/icon_eye_open.svg" alt="" aria-hidden="true">
+              <img class="password-icon icon-eye-off" src="assets/icon_eye_closed.svg" alt="" aria-hidden="true">
+            </button>
+          </div>
+        </div>
 
-        <label class="form-group" for="confirmPassword">
-          <span>Confirmar senha</span>
-          <input type="password" id="confirmPassword" autocomplete="new-password" placeholder="Repita sua senha" required>
-        </label>
+        <div class="form-group">
+          <label for="confirmPassword">Confirmar senha</label>
+          <div class="password-field">
+            <input type="password" id="confirmPassword" autocomplete="new-password" placeholder="Repita sua senha" required>
+            <button
+              type="button"
+              class="password-toggle"
+              data-toggle-password="confirmPassword"
+              aria-label="Mostrar senha"
+              aria-pressed="false"
+              title="Mostrar senha"
+            >
+              <img class="password-icon icon-eye" src="assets/icon_eye_open.svg" alt="" aria-hidden="true">
+              <img class="password-icon icon-eye-off" src="assets/icon_eye_closed.svg" alt="" aria-hidden="true">
+            </button>
+          </div>
+        </div>
 
         <button id="registerBtn" class="primary-btn" type="submit">Criar conta</button>
       </form>

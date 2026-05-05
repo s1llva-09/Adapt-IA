@@ -9,6 +9,31 @@ const passwordInput = document.getElementById("password");
 const loginBtn = document.getElementById("loginBtn");
 const message = document.getElementById("message");
 
+// Configura o botão de olho para mostrar/esconder a senha.
+// O botão tem data-toggle-password="password", então esta função
+// localiza o input pelo id e alterna entre type="password" e type="text".
+function setupPasswordToggles() {
+  document.querySelectorAll("[data-toggle-password]").forEach((button) => {
+    const inputId = button.dataset.togglePassword;
+    const input = document.getElementById(inputId);
+
+    if (!input) return;
+
+    button.addEventListener("click", () => {
+      const shouldShowPassword = input.type === "password";
+
+      input.type = shouldShowPassword ? "text" : "password";
+      button.classList.toggle("is-visible", shouldShowPassword);
+      button.setAttribute("aria-pressed", String(shouldShowPassword));
+      button.setAttribute(
+        "aria-label",
+        shouldShowPassword ? "Ocultar senha" : "Mostrar senha"
+      );
+      button.title = shouldShowPassword ? "Ocultar senha" : "Mostrar senha";
+    });
+  });
+}
+
 // Mostra mensagens de status abaixo do formulario.
 // O data-type muda a cor pelo CSS: info, success ou error.
 function showMessage(text, type = "") {
@@ -48,3 +73,5 @@ loginForm.addEventListener("submit", async (event) => {
     window.location.href = "index.html";
   }
 });
+
+setupPasswordToggles();

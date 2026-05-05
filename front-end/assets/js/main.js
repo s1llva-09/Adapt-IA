@@ -113,6 +113,26 @@ function setupProviderButtons() {
 }
 
 // ============================================================
+// FUNCAO: CONFIGURAR BOTAO VOLTAR
+// ============================================================
+// Esta funcao liga o clique do botao "Voltar" da tela de agentes.
+// A ideia aqui nao e voltar para o chat nem para a pagina anterior do navegador:
+// nesta tela, "Voltar" significa sair da escolha de agentes e retornar ao login.
+// Por isso usamos login.html diretamente, deixando o comportamento previsivel.
+function setupBackButton() {
+  // Busca no HTML o botao que tem data-back-button.
+  // Se o botao nao existir na pagina, a funcao para aqui sem gerar erro.
+  const backButton = document.querySelector("[data-back-button]");
+
+  if (!backButton) return;
+
+  // Quando clicar, redireciona para a tela de login.
+  backButton.addEventListener("click", () => {
+    window.location.href = "login.html";
+  });
+}
+
+// ============================================================
 // FUNÇÃO: SELECIONAR PROVEDOR (IA)
 // ============================================================
 // Esta função é chamada quando o usuário clica no botão
@@ -184,7 +204,10 @@ function abrirGestaoFinanceira() {
 //Permite chamar a função direto do html
 window.abrirGestaoFinanceira = abrirGestaoFinanceira
 
-document.addEventListener("DOMContentLoaded", setupProviderButtons);
+document.addEventListener("DOMContentLoaded", () => {
+  setupProviderButtons();
+  setupBackButton();
+});
 
 // ============================================================
 // EXPOSIÇÃO GLOBAL

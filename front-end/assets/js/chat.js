@@ -739,9 +739,14 @@ async function handleSubmit(event) {
     // realmente útil e persistente para o agente atual.
     if (conversationId) {
       try {
+        // Define qual texto do usuário será usado para a extração de memória.
+        // Se foi mensagem normal, usa a mensagem digitada.
+        // Se foi arquivo sem texto, registra que um arquivo foi enviado.
         const userMessageForMemory =
           message || (file ? `Arquivo enviado: ${file.name}` : "");
 
+        // Pede ao backend para avaliar se esta troca deve virar memória.
+        // O backend pode retornar uma string curta ou null.
         const memory = await extractMemory(
           provider,
           assistantType,
@@ -751,11 +756,47 @@ async function handleSubmit(event) {
         );
 
         if (memory) {
-          await saveMemory(assistantType, memory, conversationId);
-          console.log("Memória salva:", memory);
+          // Busca as memórias atuais do mesmo agente.
+          // A comparação é feita por agente para não misturar assuntos
+          // de Gestão Financeira com futuros agentes, como DP ou Comercial.
+          const existingMemories = await getMemories(assistantType);
+
+          // Normaliza textos antes de comparar.
+          // Isso reduz diferença causada por maiúsculas, minúsculas
+          // ou espaços repetidos.
+          const normalizeMemory = (text) =>
+            text
+              .toLowerCase()
+              .replace(/\s+/g, " ")
+              .trim();
+
+          const normalizedNewMemory = normalizeMemory(memory);
+
+          // Verifica se já existe uma memória igual ou muito parecida.
+          // Esta é uma comparação simples e barata, sem gastar outra chamada de IA.
+          // Exemplo:
+          // nova: "o usuário tem uma loja de roupas"
+          // antiga: "o usuário informou que sua empresa é uma loja de roupas"
+          const alreadyExists = existingMemories.some((item) => {
+            const normalizedExistingMemory = normalizeMemory(item.content);
+
+            return (
+              normalizedExistingMemory.includes(normalizedNewMemory) ||
+              normalizedNewMemory.includes(normalizedExistingMemory)
+            );
+          });
+
+          // Só salva no Supabase se ainda não existir algo parecido.
+          if (!alreadyExists) {
+            await saveMemory(assistantType, memory, conversationId);
+            console.log("Memória salva:", memory);
+          } else {
+            console.log("Memória ignorada por duplicidade:", memory);
+          }
         }
       } catch (error) {
-        // Falha ao salvar memória não deve impedir o chat de funcionar.
+        // A memória é uma melhoria do chat, não uma parte essencial da resposta.
+        // Se falhar por cota, rede ou Supabase, a conversa continua normalmente.
         console.error("Erro ao extrair/salvar memória:", error);
       }
     }
