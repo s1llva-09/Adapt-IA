@@ -394,6 +394,7 @@ ${message}
       reply = await analyzeImageWithGemini(req.file, messageWithContext);
       console.log("Imagem analisada OK");
     }
+    
     //CASO 3: ARQUIVO É EXCEL
     else if (isExcelFile(req.file)) {
       console.log("Excel detectado -> lendo planilha")
@@ -413,7 +414,8 @@ ${message}
 
         //converte a aba para CSV
         //CSV é texto simples, bom para enviar para a IA
-        const sheetText = XLSX.sheet_to_csv(sheet)
+        const sheetText = XLSX.utils.sheet_to_csv(sheet)
+
 
         //junta o nome da aba + conteudo da aba
         excelContent += `
