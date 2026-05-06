@@ -1,3 +1,7 @@
+/* ============================================================
+   Chat - estrutura geral
+   ============================================================ */
+
 .chat-body {
   height: 100dvh;
   overflow: hidden;
@@ -11,6 +15,19 @@
   transition: grid-template-columns 0.28s ease;
 }
 
+.chat-panel {
+  min-width: 0;
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ============================================================
+   Sidebar
+   ============================================================ */
+
 .chat-sidebar {
   width: 300px;
   min-width: 300px;
@@ -19,8 +36,8 @@
   flex-direction: column;
   gap: 22px;
   overflow: hidden;
-  background: rgba(7, 12, 24, 0.96);
   border-right: 1px solid var(--border);
+  background: rgba(7, 12, 24, 0.96);
   transition:
     transform 0.28s ease,
     opacity 0.28s ease,
@@ -79,6 +96,10 @@
   gap: 14px;
 }
 
+/* ============================================================
+   Botoes
+   ============================================================ */
+
 .secondary-btn {
   width: 100%;
   padding: 14px 16px;
@@ -96,8 +117,8 @@
 
 .secondary-btn:hover {
   transform: translateY(-2px);
-  background: rgba(51, 65, 85, 0.95);
   border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(51, 65, 85, 0.95);
 }
 
 .logout-btn {
@@ -108,101 +129,9 @@
 }
 
 .logout-btn:hover {
-  background: rgba(153, 27, 27, 0.35);
   border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(153, 27, 27, 0.35);
   color: #fee2e2;
-}
-
-.chat-panel {
-  min-width: 0;
-  height: 100dvh;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.chat-topbar {
-  flex-shrink: 0;
-  padding: 22px 28px 22px 84px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(8, 17, 32, 0.62);
-  backdrop-filter: blur(12px);
-}
-
-.chat-topbar h1 {
-  margin-bottom: 8px;
-  font-size: 1.9rem;
-}
-
-.chat-topbar p {
-  color: var(--text-soft);
-  font-size: 1.05rem;
-}
-
-.chat-messages {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 26px;
-  overflow-y: auto;
-}
-
-.chat-form {
-  flex-shrink: 0;
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 18px 22px 22px;
-  border-top: 1px solid var(--border);
-  background: rgba(8, 17, 32, 0.75);
-  backdrop-filter: blur(12px);
-}
-
-.chat-form textarea {
-  flex: 1;
-  min-height: 54px;
-  max-height: 120px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  outline: none;
-  resize: none;
-  background: rgba(15, 23, 42, 0.96);
-  color: var(--text);
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-.chat-form textarea::placeholder {
-  color: var(--text-soft);
-}
-
-.chat-form textarea:focus {
-  border-color: rgba(59, 130, 246, 0.55);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
-}
-
-.chat-form button {
-  min-width: 120px;
-  padding: 16px 22px;
-  border: none;
-  border-radius: 18px;
-  background: var(--primary);
-  color: white;
-  font-weight: 700;
-  transition:
-    transform 0.18s ease,
-    background 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.chat-form button:hover {
-  transform: translateY(-2px);
-  background: var(--primary-hover);
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25);
 }
 
 .toggle-sidebar {
@@ -222,14 +151,18 @@
   font-size: 1.05rem;
   font-weight: 700;
   transition:
-    background 0.2s ease,
-    transform 0.2s ease;
+    transform 0.2s ease,
+    background 0.2s ease;
 }
 
 .toggle-sidebar:hover {
   transform: translateY(-1px);
   background: rgba(51, 65, 85, 0.98);
 }
+
+/* ============================================================
+   Sidebar recolhida
+   ============================================================ */
 
 body.sidebar-collapsed .chat-layout {
   grid-template-columns: 0 1fr;
@@ -240,10 +173,46 @@ body.sidebar-collapsed .chat-sidebar {
   min-width: 0;
   padding-left: 0;
   padding-right: 0;
-  transform: translateX(-100%);
+  border-right: none;
   opacity: 0;
   pointer-events: none;
-  border-right: none;
+  transform: translateX(-100%);
+}
+
+/* ============================================================
+   Topbar
+   ============================================================ */
+
+.chat-topbar {
+  flex-shrink: 0;
+  padding: 22px 28px 22px 84px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(8, 17, 32, 0.62);
+  backdrop-filter: blur(12px);
+}
+
+.chat-topbar h1 {
+  margin-bottom: 8px;
+  font-size: 1.9rem;
+}
+
+.chat-topbar p {
+  color: var(--text-soft);
+  font-size: 1.05rem;
+}
+
+/* ============================================================
+   Area de mensagens
+   ============================================================ */
+
+.chat-messages {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 26px;
+  overflow-y: auto;
 }
 
 .message-row {
@@ -347,9 +316,9 @@ body.sidebar-collapsed .chat-sidebar {
   color: var(--text-soft);
   font-size: 0.78rem;
   transition:
+    transform 0.18s ease,
     background 0.18s ease,
-    color 0.18s ease,
-    transform 0.18s ease;
+    color 0.18s ease;
 }
 
 .copy-btn:hover {
@@ -357,6 +326,10 @@ body.sidebar-collapsed .chat-sidebar {
   background: rgba(51, 65, 85, 0.95);
   color: var(--text);
 }
+
+/* ============================================================
+   Codigo dentro das respostas
+   ============================================================ */
 
 .code-block {
   margin-top: 10px;
@@ -386,6 +359,74 @@ body.sidebar-collapsed .chat-sidebar {
   font-size: 0.84rem;
 }
 
+/* ============================================================
+   Campo de envio e anexos
+   ============================================================ */
+
+.chat-form {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 18px 22px 22px;
+  border-top: 1px solid var(--border);
+  background: rgba(8, 17, 32, 0.75);
+  backdrop-filter: blur(12px);
+}
+
+.chat-form textarea {
+  flex: 1;
+  min-height: 54px;
+  max-height: 120px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  outline: none;
+  resize: none;
+  background: rgba(15, 23, 42, 0.96);
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.chat-form textarea::placeholder {
+  color: var(--text-soft);
+}
+
+.chat-form textarea:focus {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+}
+
+#sendButton {
+  min-width: 120px;
+  padding: 16px 22px;
+  border: none;
+  border-radius: 18px;
+  background: var(--primary);
+  color: white;
+  font-weight: 700;
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease;
+}
+
+#sendButton:hover {
+  transform: translateY(-2px);
+  background: var(--primary-hover);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.25);
+}
+
+#sendButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+  box-shadow: none;
+}
+
 .file-input {
   display: none;
 }
@@ -401,15 +442,21 @@ body.sidebar-collapsed .chat-sidebar {
   border-radius: 18px;
   background: rgba(30, 41, 59, 0.86);
   color: var(--text);
-  font-size: 1.25rem;
   transition:
-    background 0.18s ease,
-    transform 0.18s ease;
+    transform 0.18s ease,
+    background 0.18s ease;
 }
 
 .file-btn:hover {
   transform: translateY(-1px);
   background: rgba(51, 65, 85, 0.95);
+}
+
+.file-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .file-name-preview {
@@ -447,9 +494,9 @@ body.sidebar-collapsed .chat-sidebar {
   width: 36px;
   height: 36px;
   min-width: 36px;
-  object-fit: cover;
   border: 1px solid var(--border);
   border-radius: 12px;
+  object-fit: cover;
 }
 
 .file-preview span {
@@ -464,6 +511,42 @@ body.sidebar-collapsed .chat-sidebar {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.file-type-menu {
+  position: absolute;
+  bottom: 72px;
+  left: 18px;
+  z-index: 50;
+  min-width: 180px;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.98);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+
+.file-type-menu.hidden {
+  display: none;
+}
+
+.file-type-menu button {
+  width: 100%;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #e5e7eb;
+  font-weight: 600;
+  text-align: left;
+}
+
+.file-type-menu button:hover {
+  background: rgba(59, 130, 246, 0.14);
+}
+
+/* ============================================================
+   Anexos dentro da conversa
+   ============================================================ */
 
 .message-attachment {
   width: min(280px, 100%);
@@ -495,8 +578,8 @@ body.sidebar-collapsed .chat-sidebar {
 
 .message-attachment-thumb {
   display: block;
-  object-fit: cover;
   background: rgba(2, 6, 23, 0.7);
+  object-fit: cover;
 }
 
 .message-attachment-icon {
@@ -531,6 +614,10 @@ body.sidebar-collapsed .chat-sidebar {
   white-space: nowrap;
 }
 
+/* ============================================================
+   Animacoes
+   ============================================================ */
+
 @keyframes fadeUp {
   from {
     opacity: 0;
@@ -542,6 +629,10 @@ body.sidebar-collapsed .chat-sidebar {
     transform: translateY(0);
   }
 }
+
+/* ============================================================
+   Responsivo
+   ============================================================ */
 
 @media (max-width: 900px) {
   .chat-layout {
@@ -568,10 +659,10 @@ body.sidebar-collapsed .chat-sidebar {
     min-width: 280px;
     padding-left: 22px;
     padding-right: 22px;
-    transform: translateX(-100%);
+    border-right: 1px solid var(--border);
     opacity: 1;
     pointer-events: none;
-    border-right: 1px solid var(--border);
+    transform: translateX(-100%);
   }
 
   .chat-topbar {
@@ -588,7 +679,7 @@ body.sidebar-collapsed .chat-sidebar {
     padding: 16px;
   }
 
-  .chat-form button {
+  #sendButton {
     min-width: 96px;
   }
 
@@ -607,6 +698,7 @@ body.sidebar-collapsed .chat-sidebar {
   .avatar {
     width: 32px;
     height: 32px;
+    min-width: 32px;
     font-size: 0.7rem;
   }
 }

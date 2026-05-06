@@ -613,6 +613,12 @@ async function handleSubmit(event) {
   // Pega o input de arquivo
   const fileInput = document.getElementById("fileInput");
 
+  //pega o Menu que aparece ao clicar no botao de enviar arquivos
+  const fileMenuButton = document.getElementById("fileMenuButton");
+
+  //pega as opções de botao ao abrir o menu de envio de arquivos
+  const fileTypeMenu = document.getElementById("fileTypeMenu");
+
   // Pega o arquivo selecionado, se existir
   const file = fileInput?.files[0];
 
@@ -935,7 +941,41 @@ async function initializeChat() {
       }
     });
   }
+    //menu de clipe para escolher o tipo de arquivo antes de abrir o seletor de arquivos
+  if (fileMenuButton && fileTypeMenu && fileInput) {
+    //quando clicar no clipe , abre e fecha o menu
+    fileMenuButton.addEventListener("click", () => {
+      fileTypeMenu.classList.toggle("hidden")
+    })
 
+    //Para cada botão dentro do menu
+    fileTypeMenu.querySelectorAll("button[data-accept]").forEach((button) => {
+      button.addEventListener("click", () => {
+        // Pega os tipos aceitos daquele botão.
+      const accept = button.dataset.accept;
+
+      // Altera o accept do input dinamicamente.
+      fileInput.setAttribute("accept", accept);
+
+      // Fecha o menu.
+      fileTypeMenu.classList.add("hidden");
+
+      // Abre o seletor de arquivos.
+      fileInput.click();
+      })
+    })
+
+      // Se clicar fora do menu, fecha.
+    document.addEventListener("click", (event) => {
+      const clickedInsideMenu = fileTypeMenu.contains(event.target);
+      const clickedButton = fileMenuButton.contains(event.target);
+
+      if (!clickedInsideMenu && !clickedButton) {
+        fileTypeMenu.classList.add("hidden");
+      }
+    });
+  }
+  
 }
 
 // Expõe funções usadas no HTML.

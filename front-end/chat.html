@@ -41,15 +41,22 @@
       <div id="chatMessages" class="chat-messages"></div>
 
       <div id="chatForm" class="chat-form">
-        <label class="file-btn" for="fileInput">
+        <button type="button" class="file-btn" id="fileMenuButton">
           <img src="assets/paperclip.svg" alt="Anexar arquivo" class="file-icon">
-        </label>
+        </button>
+
+        <div id="fileTypeMenu" class="file-type-menu hidden">
+          <button type="button" data-accept=".png,.jpg,.jpeg,.webp">Imagem</button>
+          <button type="button" data-accept=".pdf">PDF</button>
+          <button type="button" data-accept=".xlsx,.xls,.csv">Excel</button>
+          <button type="button" data-accept=".txt,.js,.html,.css,.json,.md,.xml,.sql,.java,.py,.php,.c,.cpp,.docx">Texto/Código</button>
+        </div>
 
         <input
           type="file"
           id="fileInput"
           class="file-input"
-          accept=".txt,.js,.html,.css,.json,.md,.csv,.xml,.sql,.java,.py,.php,.c,.cpp,.pdf,.docx,.png,.jpg,.jpeg,.webp"
+          accept=".txt,.js,.html,.css,.json,.md,.csv,.xml,.sql,.java,.py,.php,.c,.cpp,.pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.webp"
         >
 
         <div id="filePreview" class="file-preview"></div>

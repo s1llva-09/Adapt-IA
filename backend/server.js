@@ -29,6 +29,9 @@ const path = require("path");
 // escrever e manipular arquivos no sistema de arquivos
 const fs = require("fs");
 
+// XLSX: biblioteca usada para ler arquivos Excel (.xlsx e .xls)
+const XLSX = require("xlsx");
+
 // Dotenv: Carrega variáveis de ambiente do arquivo .env
 // para dentro de process.env (como OPENAI_API_KEY e GEMINI_API_KEY)
 require("dotenv").config({ path: "./backend/.env" });
@@ -288,6 +291,19 @@ app.post("/memory/extract", async (req, res) => {
   }
 });
 
+//Verifica se arquivos enviados sao Excel
+// Usamos mimetype e extensão porque alguns navegadores podem mandar mimetype diferente.
+function isExcelFile(file) {
+  const fileName = file.originalname.toLowerCase()
+
+  return (
+    file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    file.mimetype === "application/vnd.ms-excel" ||
+    fileName.endsWith(".xlsx") ||
+    fileName.endsWith(".xls")
+  )
+}
+
 // ----------------------------------------------------------
 // ROTA DE UPLOAD DE ARQUIVOS
 // ----------------------------------------------------------
@@ -378,7 +394,70 @@ ${message}
       reply = await analyzeImageWithGemini(req.file, messageWithContext);
       console.log("Imagem analisada OK");
     }
-    // CASO 3: OUTROS ARQUIVOS (txt, csv, código, etc)
+    //CASO 3: ARQUIVO É EXCEL
+    else if (isExcelFile(req.file)) {
+      console.log("Excel detectado -> lendo planilha")
+
+      //Lê o arquivo excel salvo temporariamente pelo Multer
+      //req.file.path é o caminho físico do arquivo dentro da pasta backend/uploads
+      const workbook = XLSX.readFile(req.file.path)
+
+      //Essa variavel vai juntar o conteudo de todas as abas da planilha 
+      let excelContent = ""
+
+      //Um excel pode ter varias abas
+      //sheetNames é a lista com o nome de todas elas
+      workbook.SheetNames.forEach((SheetName) => {
+        //Pega a aba atual pelo seu nome
+        const sheet = workbook.Sheets[SheetName]
+
+        //converte a aba para CSV
+        //CSV é texto simples, bom para enviar para a IA
+        const sheetText = XLSX.sheet_to_csv(sheet)
+
+        //junta o nome da aba + conteudo da aba
+        excelContent += `
+          ABA: ${sheetName}
+
+          ${sheetText}
+
+          -------------------------
+        `
+      })
+
+        // Evita mandar uma planilha gigante demais para a IA.
+        // Se quiser aumentar depois, pode trocar 12000 por 20000.
+        const limitedExcelContent = excelContent.slice(0, 12000);
+
+        //Monta as mensagens para a IA
+        const messages = [
+    {
+      role: "system",
+      content: systemPromptText
+    },
+    ...parsedHistory,
+    {
+      role: "user",
+      content: `
+
+      Mensagem do usuário:
+      ${message}
+
+      Arquivo Excel enviado:
+      ${req.file.originalname}
+
+      Conteúdo extraído da planilha:
+      ${limitedExcelContent}
+            `.trim()
+          }
+        ];
+
+        //envia o conteudo extraido para o gemini analisar
+        reply: await sendToGemini(message)
+
+        console.log("Arquivo excel analisado")
+    }
+    // CASO 4: OUTROS ARQUIVOS (txt, csv, código, etc)
     else {
       console.log("Arquivo texto detectado");
       // Lê o conteúdo do arquivo como texto
