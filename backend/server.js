@@ -294,14 +294,14 @@ app.post("/memory/extract", async (req, res) => {
 //Verifica se arquivos enviados sao Excel
 // Usamos mimetype e extensão porque alguns navegadores podem mandar mimetype diferente.
 function isExcelFile(file) {
-  const fileName = file.originalname.toLowerCase()
+  const fileName = file.originalname.toLowerCase();
 
   return (
     file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
     file.mimetype === "application/vnd.ms-excel" ||
     fileName.endsWith(".xlsx") ||
     fileName.endsWith(".xls")
-  )
+  );
 }
 
 // ----------------------------------------------------------
@@ -394,68 +394,69 @@ ${message}
       reply = await analyzeImageWithGemini(req.file, messageWithContext);
       console.log("Imagem analisada OK");
     }
+    
     //CASO 3: ARQUIVO É EXCEL
     else if (isExcelFile(req.file)) {
-      console.log("Excel detectado -> lendo planilha")
+      console.log("Excel detectado -> lendo planilha");
 
       //Lê o arquivo excel salvo temporariamente pelo Multer
       //req.file.path é o caminho físico do arquivo dentro da pasta backend/uploads
-      const workbook = XLSX.readFile(req.file.path)
+      const workbook = XLSX.readFile(req.file.path);
 
       //Essa variavel vai juntar o conteudo de todas as abas da planilha 
-      let excelContent = ""
+      let excelContent = "";
 
       //Um excel pode ter varias abas
       //sheetNames é a lista com o nome de todas elas
-      workbook.SheetNames.forEach((SheetName) => {
+      workbook.SheetNames.forEach((sheetName) => {
         //Pega a aba atual pelo seu nome
-        const sheet = workbook.Sheets[SheetName]
+        const sheet = workbook.Sheets[sheetName];
 
         //converte a aba para CSV
         //CSV é texto simples, bom para enviar para a IA
-        const sheetText = XLSX.utils.sheet_to_csv(sheet)
+        const sheetText = XLSX.utils.sheet_to_csv(sheet);
 
         //junta o nome da aba + conteudo da aba
         excelContent += `
-          ABA: ${sheetName}
+ABA: ${sheetName}
 
-          ${sheetText}
+${sheetText}
 
-          -------------------------
+-------------------------
         `
-      })
+      });
 
-        // Evita mandar uma planilha gigante demais para a IA.
-        // Se quiser aumentar depois, pode trocar 12000 por 20000.
-        const limitedExcelContent = excelContent.slice(0, 12000);
+      // Evita mandar uma planilha gigante demais para a IA.
+      // Se quiser aumentar depois, pode trocar 12000 por 20000.
+      const limitedExcelContent = excelContent.slice(0, 12000);
 
-        //Monta as mensagens para a IA
-        const messages = [
-    {
-      role: "system",
-      content: systemPromptText
-    },
-    ...parsedHistory,
-    {
-      role: "user",
-      content: `
+      //Monta as mensagens para a IA
+      const messages = [
+        {
+          role: "system",
+          content: systemPromptText
+        },
+        ...parsedHistory,
+        {
+          role: "user",
+          content: `
 
-      Mensagem do usuário:
-      ${message}
+Mensagem do usuário:
+${message}
 
-      Arquivo Excel enviado:
-      ${req.file.originalname}
+Arquivo Excel enviado:
+${req.file.originalname}
 
-      Conteúdo extraído da planilha:
-      ${limitedExcelContent}
-            `.trim()
-          }
-        ];
+Conteúdo extraído da planilha:
+${limitedExcelContent}
+          `.trim()
+        }
+      ];
 
-        //envia o conteudo extraido para o gemini analisar
-        reply: await sendToGemini(message)
+      //envia o conteudo extraido para o gemini analisar
+      reply = await sendToGemini(messages);
 
-        console.log("Arquivo excel analisado")
+      console.log("Arquivo Excel analisado");
     }
     // CASO 4: OUTROS ARQUIVOS (txt, csv, código, etc)
     else {
