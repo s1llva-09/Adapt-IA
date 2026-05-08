@@ -463,7 +463,7 @@ body.sidebar-collapsed .chat-sidebar {
   display: none;
 }
 
-.file-preview {
+.chat-form .file-preview {
   width: auto;
   max-width: 240px;
   min-width: 0;
@@ -479,18 +479,18 @@ body.sidebar-collapsed .chat-sidebar {
   font-size: 0.88rem;
 }
 
-.file-preview:empty {
+.chat-form .file-preview:empty {
   display: none;
 }
 
-.file-preview:not(:empty) {
+.chat-form .file-preview:not(:empty) {
   padding: 8px 10px;
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: rgba(15, 23, 42, 0.96);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
-.file-preview img {
+.chat-form .file-preview img {
   width: 36px;
   height: 36px;
   min-width: 36px;
@@ -499,7 +499,7 @@ body.sidebar-collapsed .chat-sidebar {
   object-fit: cover;
 }
 
-.file-preview span {
+.chat-form .file-preview span {
   min-width: 0;
   flex: 1 1 auto;
   display: block;
@@ -701,4 +701,142 @@ body.sidebar-collapsed .chat-sidebar {
     min-width: 32px;
     font-size: 0.7rem;
   }
+}
+
+/* ==========================================================
+   ÁREA SEPARADA DE ANEXOS
+   Essa área fica fora do input para não diminuir o chat.
+========================================================== */
+
+.attachment-area {
+  width: calc(100% - 48px);
+  max-width: 980px;
+  margin: 0 auto 12px auto;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.attachment-area.hidden {
+  display: none;
+}
+
+/* Preview do arquivo anexado */
+.file-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Imagem pequena quando for imagem */
+.file-preview img {
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+/* Nome do arquivo */
+.file-preview span {
+  color: #e5e7eb;
+  font-size: 0.9rem;
+  font-weight: 600;
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Botão remover anexo */
+.clear-attachment-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: rgba(239, 68, 68, 0.16);
+  color: #fecaca;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.clear-attachment-btn:hover {
+  background: rgba(239, 68, 68, 0.26);
+}
+
+/* ==========================================================
+   STATUS DO UPLOAD
+========================================================== */
+
+.upload-status {
+  width: calc(100% - 48px);
+  max-width: 980px;
+  margin: 0 auto 12px auto;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  color: #bfdbfe;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.upload-status.hidden {
+  display: none;
+}
+
+/* ==========================================================
+   MENU DO CLIPE
+========================================================== */
+
+.chat-form {
+  position: relative;
+}
+
+.file-type-menu {
+  position: absolute;
+  bottom: 72px;
+  left: 12px;
+  min-width: 190px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  z-index: 80;
+}
+
+.file-type-menu.hidden {
+  display: none;
+}
+
+.file-type-menu button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.file-type-menu button:hover {
+  background: rgba(59, 130, 246, 0.14);
+}
+
+/* ==========================================================
+   DRAG AND DROP
+========================================================== */
+
+.chat-form.drag-over {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
 }

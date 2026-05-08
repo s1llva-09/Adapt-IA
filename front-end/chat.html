@@ -40,16 +40,50 @@
 
       <div id="chatMessages" class="chat-messages"></div>
 
+      <!--
+        Área separada para mostrar arquivo anexado.
+        Isso evita que o arquivo fique dentro do input e diminua o tamanho do chat.
+      -->
+      <div id="attachmentArea" class="attachment-area hidden">
+        <div id="filePreview" class="file-preview"></div>
+
+        <button type="button" id="clearAttachmentButton" class="clear-attachment-btn">
+          Remover
+        </button>
+      </div>
+
+      <!--
+        Status do processamento.
+        Exemplo: "Lendo Excel...", "Analisando imagem..."
+      -->
+      <div id="uploadStatus" class="upload-status hidden"></div>
+
       <div id="chatForm" class="chat-form">
+        <!--
+          Botão do clipe.
+          Agora ele abre um menu para escolher o tipo de arquivo.
+        -->
         <button type="button" class="file-btn" id="fileMenuButton">
           <img src="assets/paperclip.svg" alt="Anexar arquivo" class="file-icon">
         </button>
 
+        <!-- Menu de tipos de arquivo -->
         <div id="fileTypeMenu" class="file-type-menu hidden">
-          <button type="button" data-accept=".png,.jpg,.jpeg,.webp">Imagem</button>
-          <button type="button" data-accept=".pdf">PDF</button>
-          <button type="button" data-accept=".xlsx,.xls,.csv">Excel</button>
-          <button type="button" data-accept=".txt,.js,.html,.css,.json,.md,.xml,.sql,.java,.py,.php,.c,.cpp,.docx">Texto/Código</button>
+          <button type="button" data-accept=".png,.jpg,.jpeg,.webp">
+            Imagem
+          </button>
+
+          <button type="button" data-accept=".pdf">
+            PDF
+          </button>
+
+          <button type="button" data-accept=".xlsx,.xls,.csv">
+            Excel / CSV
+          </button>
+
+          <button type="button" data-accept=".txt,.js,.html,.css,.json,.md,.xml,.sql,.java,.py,.php,.c,.cpp,.docx">
+            Texto / Código / Word
+          </button>
         </div>
 
         <input
@@ -58,8 +92,6 @@
           class="file-input"
           accept=".txt,.js,.html,.css,.json,.md,.csv,.xml,.sql,.java,.py,.php,.c,.cpp,.pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.webp"
         >
-
-        <div id="filePreview" class="file-preview"></div>
 
         <textarea
           id="messageInput"

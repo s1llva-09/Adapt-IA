@@ -601,6 +601,186 @@ async function typeMessage(content) {
   }
 }
 
+// ==========================================================
+// IDENTIFICA O TIPO DO ARQUIVO
+// ==========================================================
+function getFileKind(file) {
+  // Se não tiver arquivo, retorna null
+  if (!file) return null;
+
+  // Pega nome e tipo do arquivo
+  const name = file.name.toLowerCase();
+  const type = file.type || "";
+
+  // Imagem
+  if (type.startsWith("image/")) {
+    return "image";
+  }
+
+  // PDF
+  if (type === "application/pdf" || name.endsWith(".pdf")) {
+    return "pdf";
+  }
+
+  // Excel ou CSV
+  if (
+    name.endsWith(".xlsx") ||
+    name.endsWith(".xls") ||
+    name.endsWith(".csv")
+  ) {
+    return "excel";
+  }
+
+  // Word
+  if (name.endsWith(".docx")) {
+    return "docx";
+  }
+
+  // Texto/código
+  return "text";
+}
+
+// ==========================================================
+// MOSTRA STATUS DO UPLOAD
+// ==========================================================
+function showUploadStatus(file) {
+  const status = document.getElementById("uploadStatus");
+
+  if (!status) return;
+
+  const kind = getFileKind(file);
+
+  let message = "Analisando arquivo...";
+
+  if (kind === "image") {
+    message = "Analisando imagem e lendo texto visível...";
+  }
+
+  if (kind === "pdf") {
+    message = "Lendo PDF e analisando conteúdo...";
+  }
+
+  if (kind === "excel") {
+    message = "Lendo planilha Excel e organizando dados...";
+  }
+
+  if (kind === "docx") {
+    message = "Lendo documento Word...";
+  }
+
+  if (kind === "text") {
+    message = "Lendo arquivo de texto/código...";
+  }
+
+  status.textContent = message;
+  status.classList.remove("hidden");
+}
+
+// ==========================================================
+// ESCONDE STATUS DO UPLOAD
+// ==========================================================
+function hideUploadStatus() {
+  const status = document.getElementById("uploadStatus");
+
+  if (!status) return;
+
+  status.textContent = "";
+  status.classList.add("hidden");
+}
+
+// ==========================================================
+// LIMPA O ARQUIVO SELECIONADO
+// ==========================================================
+function clearSelectedFile() {
+  const fileInput = document.getElementById("fileInput");
+  const filePreview = document.getElementById("filePreview");
+  const attachmentArea = document.getElementById("attachmentArea");
+
+  if (fileInput) fileInput.value = "";
+
+  if (filePreview) filePreview.innerHTML = "";
+
+  if (attachmentArea) {
+    attachmentArea.classList.add("hidden");
+  }
+}
+
+// ==========================================================
+// MOSTRA PREVIEW DO ARQUIVO SELECIONADO
+// ==========================================================
+function renderSelectedFilePreview(file) {
+  const filePreview = document.getElementById("filePreview");
+  const attachmentArea = document.getElementById("attachmentArea");
+
+  if (!filePreview || !attachmentArea) return;
+
+  filePreview.innerHTML = "";
+
+  if (!file) {
+    attachmentArea.classList.add("hidden");
+    return;
+  }
+
+  attachmentArea.classList.remove("hidden");
+
+  if (file.type.startsWith("image/")) {
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(file);
+
+    const span = document.createElement("span");
+    span.textContent = file.name;
+
+    filePreview.appendChild(img);
+    filePreview.appendChild(span);
+    return;
+  }
+
+  const span = document.createElement("span");
+  span.textContent = `📎 ${file.name}`;
+  filePreview.appendChild(span);
+}
+
+// ==========================================================
+// MENSAGENS DE ERRO MAIS BONITAS
+// ==========================================================
+function getFriendlyErrorMessage(error) {
+  const message = String(error?.message || error || "");
+
+  if (
+    message.includes("429") ||
+    message.toLowerCase().includes("quota") ||
+    message.toLowerCase().includes("limite")
+  ) {
+    return "O limite temporário da IA foi atingido. Aguarde alguns segundos e tente novamente.";
+  }
+
+  if (
+    message.toLowerCase().includes("failed to fetch") ||
+    message.toLowerCase().includes("conectar") ||
+    message.toLowerCase().includes("backend")
+  ) {
+    return "Não consegui conectar ao servidor. Verifique se o backend está rodando e tente novamente.";
+  }
+
+  if (
+    message.toLowerCase().includes("file too large") ||
+    message.toLowerCase().includes("too large") ||
+    message.toLowerCase().includes("limit")
+  ) {
+    return "Esse arquivo é muito grande. Envie um arquivo menor ou divida o conteúdo.";
+  }
+
+  if (
+    message.toLowerCase().includes("unsupported") ||
+    message.toLowerCase().includes("inválido") ||
+    message.toLowerCase().includes("invalid")
+  ) {
+    return "Esse tipo de arquivo não é compatível no momento.";
+  }
+
+  return message || "Ocorreu um erro ao processar sua solicitação.";
+}
+
 // Função chamada quando clica em enviar ou aperta Enter
 // Função chamada quando o usuário clica no botão Enviar ou aperta Enter
 async function handleSubmit(event) {
@@ -612,12 +792,6 @@ async function handleSubmit(event) {
 
   // Pega o input de arquivo
   const fileInput = document.getElementById("fileInput");
-
-  //pega o Menu que aparece ao clicar no botao de enviar arquivos
-  const fileMenuButton = document.getElementById("fileMenuButton");
-
-  //pega as opções de botao ao abrir o menu de envio de arquivos
-  const fileTypeMenu = document.getElementById("fileTypeMenu");
 
   // Pega o arquivo selecionado, se existir
   const file = fileInput?.files[0];
@@ -682,6 +856,11 @@ async function handleSubmit(event) {
   // Mostra "A IA está digitando..."
   showTyping();
 
+  // Se tiver arquivo, mostra um status específico
+  if (file) {
+    showUploadStatus(file);
+  }
+
   try {
     let data;
 
@@ -727,6 +906,8 @@ async function handleSubmit(event) {
 
     // Remove o carregamento
     removeTyping();
+
+    hideUploadStatus();
 
     // Adiciona a resposta da IA no histórico
     addMessage("assistant", reply);
@@ -811,20 +992,18 @@ async function handleSubmit(event) {
     renderMessages();
 
     // Limpa o arquivo selecionado
-    if (fileInput) fileInput.value = "";
-
-    // Limpa o preview do arquivo
-    const filePreview = document.getElementById("filePreview");
-    if (filePreview) filePreview.innerHTML = "";
+    clearSelectedFile();
 
   } catch (error) {
     // Remove carregamento
     removeTyping();
 
+    hideUploadStatus();
+
     // Mostra erro no chat
     addMessage(
       "assistant",
-      error.message || "Desculpe, houve um erro ao conectar com o servidor."
+      getFriendlyErrorMessage(error)
     );
 
     // Atualiza a tela
@@ -861,6 +1040,11 @@ async function initializeChat() {
 
   // Pega a área de preview do arquivo
   const filePreview = document.getElementById("filePreview");
+
+  const chatForm = document.getElementById("chatForm");
+  const fileMenuButton = document.getElementById("fileMenuButton");
+  const fileTypeMenu = document.getElementById("fileTypeMenu");
+  const clearAttachmentButton = document.getElementById("clearAttachmentButton");
 
   // Se não tiver provider ou agente, volta para a tela inicial.
   // Assim o usuário sempre entra no chat com um agente escolhido.
@@ -914,68 +1098,91 @@ async function initializeChat() {
     sendButton.addEventListener("click", handleSubmit);
   }
 
-  // Preview do arquivo selecionado
-  if (fileInput && filePreview) {
+  // ==========================================================
+  // PREVIEW DO ARQUIVO SELECIONADO
+  // ==========================================================
+  if (fileInput) {
     fileInput.addEventListener("change", () => {
       const file = fileInput.files[0];
 
-      // Limpa preview antigo
-      filePreview.innerHTML = "";
-
-      // Se não tiver arquivo, para
-      if (!file) return;
-
-      // Se for imagem, mostra miniatura
-      if (file.type.startsWith("image/")) {
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(file);
-
-        const span = document.createElement("span");
-        span.textContent = file.name;
-
-        filePreview.appendChild(img);
-        filePreview.appendChild(span);
-      } else {
-        // Se for PDF/documento, mostra só o nome
-        filePreview.innerHTML = `<span>${file.name}</span>`;
-      }
+      renderSelectedFilePreview(file);
     });
   }
-    //menu de clipe para escolher o tipo de arquivo antes de abrir o seletor de arquivos
-  if (fileMenuButton && fileTypeMenu && fileInput) {
-    //quando clicar no clipe , abre e fecha o menu
-    fileMenuButton.addEventListener("click", () => {
-      fileTypeMenu.classList.toggle("hidden")
-    })
 
-    //Para cada botão dentro do menu
+  // ==========================================================
+  // BOTÃO REMOVER ARQUIVO
+  // ==========================================================
+  if (clearAttachmentButton) {
+    clearAttachmentButton.addEventListener("click", () => {
+      clearSelectedFile();
+    });
+  }
+
+  // ==========================================================
+  // MENU DO CLIPE
+  // ==========================================================
+  if (fileMenuButton && fileTypeMenu && fileInput) {
+    // Abre/fecha o menu ao clicar no clipe
+    fileMenuButton.addEventListener("click", () => {
+      fileTypeMenu.classList.toggle("hidden");
+    });
+
+    // Cada botão do menu muda o accept do input
     fileTypeMenu.querySelectorAll("button[data-accept]").forEach((button) => {
       button.addEventListener("click", () => {
-        // Pega os tipos aceitos daquele botão.
-      const accept = button.dataset.accept;
+        const accept = button.dataset.accept;
 
-      // Altera o accept do input dinamicamente.
-      fileInput.setAttribute("accept", accept);
+        fileInput.setAttribute("accept", accept);
 
-      // Fecha o menu.
-      fileTypeMenu.classList.add("hidden");
+        fileTypeMenu.classList.add("hidden");
 
-      // Abre o seletor de arquivos.
-      fileInput.click();
-      })
-    })
+        fileInput.click();
+      });
+    });
 
-      // Se clicar fora do menu, fecha.
+    // Fecha menu se clicar fora
     document.addEventListener("click", (event) => {
-      const clickedInsideMenu = fileTypeMenu.contains(event.target);
+      const clickedMenu = fileTypeMenu.contains(event.target);
       const clickedButton = fileMenuButton.contains(event.target);
 
-      if (!clickedInsideMenu && !clickedButton) {
+      if (!clickedMenu && !clickedButton) {
         fileTypeMenu.classList.add("hidden");
       }
     });
   }
-  
+
+  // ==========================================================
+  // DRAG AND DROP DE ARQUIVOS
+  // ==========================================================
+  if (chatForm && fileInput) {
+    chatForm.addEventListener("dragover", (event) => {
+      event.preventDefault();
+
+      chatForm.classList.add("drag-over");
+    });
+
+    chatForm.addEventListener("dragleave", () => {
+      chatForm.classList.remove("drag-over");
+    });
+
+    chatForm.addEventListener("drop", (event) => {
+      event.preventDefault();
+
+      chatForm.classList.remove("drag-over");
+
+      const droppedFile = event.dataTransfer.files[0];
+
+      if (!droppedFile) return;
+
+      const dataTransfer = new DataTransfer();
+
+      dataTransfer.items.add(droppedFile);
+
+      fileInput.files = dataTransfer.files;
+
+      fileInput.dispatchEvent(new Event("change"));
+    });
+  }
 }
 
 // Expõe funções usadas no HTML.
