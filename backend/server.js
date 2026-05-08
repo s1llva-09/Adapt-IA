@@ -300,7 +300,7 @@ app.post("/memory/extract", async (req, res) => {
   }
 });
 
-//Verifica se arquivos enviados sao Excel
+//Verifica se arquivos enviados sao Excel/CSV
 // Usamos mimetype e extensão porque alguns navegadores podem mandar mimetype diferente.
 function isExcelFile(file) {
   const fileName = file.originalname.toLowerCase();
@@ -308,9 +308,158 @@ function isExcelFile(file) {
   return (
     file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
     file.mimetype === "application/vnd.ms-excel" ||
+    file.mimetype === "text/csv" ||
     fileName.endsWith(".xlsx") ||
-    fileName.endsWith(".xls")
+    fileName.endsWith(".xls") ||
+    fileName.endsWith(".csv")
   );
+}
+
+// ==========================================================
+// GERA DADOS DE GRÁFICO AUTOMATICAMENTE A PARTIR DO EXCEL
+// ==========================================================
+
+function generateChartFromWorkbook(workbook) {
+  try {
+    // Pega a primeira aba do Excel
+    const firstSheetName = workbook.SheetNames[0];
+
+    // Se não existir aba, não gera gráfico
+    if (!firstSheetName) return null;
+
+    // Pega a planilha da primeira aba
+    const sheet = workbook.Sheets[firstSheetName];
+
+    // Converte a planilha para JSON
+    // Cada linha vira um objeto JavaScript
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    // Se não tiver linhas, não gera gráfico
+    if (!rows || rows.length === 0) return null;
+
+    // Pega as colunas da primeira linha
+    const columns = Object.keys(rows[0]);
+
+    // Se não tiver colunas, não gera gráfico
+    if (columns.length === 0) return null;
+
+    // ======================================================
+    // TENTA DESCOBRIR QUAL COLUNA É O NOME/LABEL
+    // ======================================================
+
+    const labelColumn =
+      columns.find((col) => col.toLowerCase().includes("cliente")) ||
+      columns.find((col) => col.toLowerCase().includes("comprador")) ||
+      columns.find((col) => col.toLowerCase().includes("fornecedor")) ||
+      columns.find((col) => col.toLowerCase().includes("produto")) ||
+      columns.find((col) => col.toLowerCase().includes("item")) ||
+      columns.find((col) => col.toLowerCase().includes("nome")) ||
+      columns[0];
+
+    // ======================================================
+    // TENTA DESCOBRIR QUAL COLUNA É O VALOR
+    // ======================================================
+
+    const valueColumn =
+      columns.find((col) => col.toLowerCase().includes("total")) ||
+      columns.find((col) => col.toLowerCase().includes("valor")) ||
+      columns.find((col) => col.toLowerCase().includes("venda")) ||
+      columns.find((col) => col.toLowerCase().includes("compra")) ||
+      columns.find((col) => col.toLowerCase().includes("quantidade")) ||
+      columns.find((col) => col.toLowerCase().includes("qtd")) ||
+      columns.find((col) => col.toLowerCase().includes("preço")) ||
+      columns.find((col) => col.toLowerCase().includes("preco"));
+
+    // Se não encontrou coluna numérica, não gera gráfico
+    if (!valueColumn) return null;
+
+    const parseChartValue = (rawCellValue) => {
+      if (typeof rawCellValue === "number") {
+        return rawCellValue;
+      }
+
+      let normalized = String(rawCellValue || "0")
+        .replace("R$", "")
+        .replace(/\s/g, "")
+        .replace(/[^\d,.-]/g, "");
+
+      const dotCount = (normalized.match(/\./g) || []).length;
+      const hasComma = normalized.includes(",");
+      const hasDot = normalized.includes(".");
+
+      if (hasComma && hasDot) {
+        normalized = normalized.replace(/\./g, "").replace(",", ".");
+      } else if (hasComma) {
+        normalized = normalized.replace(",", ".");
+      } else if (
+        dotCount > 1 ||
+        /^\d{1,3}(\.\d{3})+$/.test(normalized)
+      ) {
+        normalized = normalized.replace(/\./g, "");
+      }
+
+      return Number(normalized);
+    };
+
+    // ======================================================
+    // AGRUPA OS VALORES POR NOME
+    // ======================================================
+
+    const grouped = {};
+
+    rows.forEach((row) => {
+      // Pega o texto da coluna usada como label
+      const label = String(row[labelColumn] || "Sem nome").trim();
+
+      // Converte para número
+      const value = parseChartValue(row[valueColumn]);
+
+      // Se não for número válido, ignora
+      if (!Number.isFinite(value)) return;
+
+      // Se ainda não existir esse label, cria com zero
+      if (!grouped[label]) {
+        grouped[label] = 0;
+      }
+
+      // Soma o valor
+      grouped[label] += value;
+    });
+
+    // ======================================================
+    // CRIA RANKING DO MAIOR PARA O MENOR
+    // ======================================================
+
+    const ranking = Object.entries(grouped)
+      .map(([label, value]) => ({
+        label,
+        value
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+
+    // Se não gerou ranking, não retorna gráfico
+    if (ranking.length === 0) return null;
+
+    // ======================================================
+    // RETORNA O OBJETO DO GRÁFICO PARA O FRONT
+    // ======================================================
+
+    return {
+      type: "bar",
+      title: `Top ${ranking.length} por ${valueColumn}`,
+      labels: ranking.map((item) => item.label),
+      values: ranking.map((item) => item.value),
+      meta: {
+        sheet: firstSheetName,
+        labelColumn,
+        valueColumn
+      }
+    };
+  } catch (error) {
+    console.error("Erro ao gerar gráfico automático:", error);
+    return null;
+  }
 }
 
 // ----------------------------------------------------------
@@ -384,6 +533,7 @@ ${message}
     // VARIÁVEL PARA RESPOSTA FINAL
     // --------------------------------------------------------
     let reply;
+    let chart = null;
 
     // --------------------------------------------------------
     // PROCESSAMENTO BASEADO NO TIPO DE ARQUIVO
@@ -404,13 +554,16 @@ ${message}
       console.log("Imagem analisada OK");
     }
     
-    //CASO 3: ARQUIVO É EXCEL
+    //CASO 3: ARQUIVO É EXCEL/CSV
     else if (isExcelFile(req.file)) {
-      console.log("Excel detectado -> lendo planilha");
+      console.log("Excel/CSV detectado -> lendo planilha");
 
       //Lê o arquivo excel salvo temporariamente pelo Multer
       //req.file.path é o caminho físico do arquivo dentro da pasta backend/uploads
       const workbook = XLSX.readFile(req.file.path);
+
+      // Gera dados de gráfico automaticamente
+      chart = generateChartFromWorkbook(workbook);
 
       //Essa variavel vai juntar o conteudo de todas as abas da planilha 
       let excelContent = "";
@@ -453,11 +606,14 @@ ${sheetText}
 Mensagem do usuário:
 ${message}
 
-Arquivo Excel enviado:
+Arquivo Excel/CSV enviado:
 ${req.file.originalname}
 
 Conteúdo extraído da planilha:
 ${limitedExcelContent}
+
+Observação:
+Se houver dados numéricos e categorias, analise os maiores valores e explique o ranking.
           `.trim()
         }
       ];
@@ -465,9 +621,9 @@ ${limitedExcelContent}
       //envia o conteudo extraido para o gemini analisar
       reply = await sendToGemini(messages);
 
-      console.log("Arquivo Excel analisado");
+      console.log("Arquivo Excel/CSV analisado");
     }
-    // CASO 4: OUTROS ARQUIVOS (txt, csv, código, etc)
+    // CASO 4: OUTROS ARQUIVOS (txt, código, etc)
     else {
       console.log("Arquivo texto detectado");
       // Lê o conteúdo do arquivo como texto
@@ -509,6 +665,7 @@ ${fileContent}
     // Retorna a resposta da IA e o nome do arquivo processado
     return res.status(200).json({
       reply, // resposta da IA
+      chart,
       fileName: req.file.originalname // nome original do arquivo
     });
 

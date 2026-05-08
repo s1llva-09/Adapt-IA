@@ -151,6 +151,7 @@ function saveChatHistory(history) {
     const compactHistory = history.map((message) => ({
       role: message.role,
       content: message.content,
+      chart: message.chart || null,
       attachment: message.attachment
         ? {
             name: message.attachment.name,
@@ -163,10 +164,17 @@ function saveChatHistory(history) {
   }
 }
 
-// Adiciona uma nova mensagem ao histórico.
-function addMessage(role, content, attachment = null) {
+// Adiciona uma nova mensagem ao histórico
+function addMessage(role, content, attachment = null, chart = null) {
   const history = getChatHistory();
-  history.push({ role, content, attachment });
+
+  history.push({
+    role,
+    content,
+    attachment,
+    chart
+  });
+
   saveChatHistory(history);
 }
 
@@ -413,8 +421,72 @@ function createAttachmentElement(role, attachment) {
   return card;
 }
 
+// ==========================================================
+// CRIA UM GRÁFICO DENTRO DA MENSAGEM
+// ==========================================================
+
+function createChartElement(chart) {
+  // Cria a caixa do gráfico
+  const chartBox = document.createElement("div");
+  chartBox.classList.add("message-chart");
+
+  // Cria o título do gráfico
+  const title = document.createElement("h4");
+  title.textContent = chart.title || "Gráfico";
+  chartBox.appendChild(title);
+
+  // Cria o canvas onde o Chart.js vai desenhar
+  const canvas = document.createElement("canvas");
+  chartBox.appendChild(canvas);
+
+  // O setTimeout garante que o canvas já esteja na tela antes de renderizar
+  setTimeout(() => {
+    const ChartConstructor = window.Chart;
+
+    if (!ChartConstructor) {
+      console.error("Chart.js não foi carregado.");
+      return;
+    }
+
+    new ChartConstructor(canvas, {
+      type: chart.type || "bar",
+      data: {
+        labels: chart.labels || [],
+        datasets: [
+          {
+            label: chart.title || "Valores",
+            data: chart.values || []
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  }, 0);
+
+  return chartBox;
+}
+
 // Cria visualmente uma mensagem no chat.
-function createMessageElement(role, content = "", useTyping = false, attachment = null) {
+function createMessageElement(
+  role,
+  content = "",
+  useTyping = false,
+  attachment = null,
+  chart = null
+) {
   const wrapper = document.createElement("div");
 
   wrapper.classList.add(
@@ -450,6 +522,11 @@ function createMessageElement(role, content = "", useTyping = false, attachment 
   // Só adiciona bolha se tiver conteúdo ou se for typing.
   if (useTyping || content || !attachment) {
     messageBox.appendChild(bubble);
+  }
+
+  // Se tiver gráfico e for resposta da IA, mostra o gráfico abaixo do texto
+  if (chart && role === "assistant") {
+    messageBox.appendChild(createChartElement(chart));
   }
 
   // Botão copiar apenas para respostas da IA.
@@ -495,7 +572,8 @@ function renderMessages() {
       msg.role,
       msg.content || "",
       false,
-      msg.attachment || null
+      msg.attachment || null,
+      msg.chart || null
     );
 
     container.appendChild(wrapper);
@@ -910,7 +988,7 @@ async function handleSubmit(event) {
     hideUploadStatus();
 
     // Adiciona a resposta da IA no histórico
-    addMessage("assistant", reply);
+    addMessage("assistant", reply, null, data.chart || null);
 
     // Salva tambem a resposta da IA na mesma conversa do Supabase.
     if (conversationId) {

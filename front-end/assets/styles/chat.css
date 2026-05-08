@@ -840,3 +840,29 @@ body.sidebar-collapsed .chat-sidebar {
   background: rgba(59, 130, 246, 0.08);
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
 }
+
+/* ==========================================================
+   GRÁFICO DENTRO DA MENSAGEM
+========================================================== */
+
+.message-chart {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  width: min(100%, 640px);
+  height: 360px;
+}
+
+.message-chart h4 {
+  margin: 0 0 12px 0;
+  color: #e5e7eb;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.message-chart canvas {
+  width: 100% !important;
+  height: 290px !important;
+}
