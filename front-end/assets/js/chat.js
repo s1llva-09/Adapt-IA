@@ -283,6 +283,23 @@ function formatMarkdown(text) {
   return formatted;
 }
 
+// Remove blocos JSON que a IA escreve quando tenta "desenhar" grafico em texto.
+// Quando o backend ja enviou data.chart, o grafico visual fica abaixo da resposta,
+// entao esse JSON cru so deixa a interface poluida.
+function removeChartJsonBlocks(text) {
+  // A IA as vezes responde com:
+  // ```json
+  // { ... configuracao do grafico ... }
+  // ```
+  // Esse regex remove apenas blocos que parecem ser de grafico,
+  // preservando outros textos da resposta.
+  return String(text || "")
+    .replace(/```json\s*[\s\S]*?(?:graph_type|datasets|labels|data|type)\s*[\s\S]*?```/gi, "")
+    .replace(/```\s*[\s\S]*?(?:graph_type|datasets|labels|data|type)\s*[\s\S]*?```/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // Define a letra do avatar.
 function getAvatarLetter(role) {
   return role === "user" ? "U" : "IA";
@@ -484,6 +501,10 @@ function createLegacyChartElement(chart) {
 // ==========================================================
 
 function createChartElement(chart) {
+  // Esta funcao recebe o objeto chart vindo do backend:
+  // { type, title, labels, values, meta }
+  // e transforma isso em um grafico visual usando Chart.js.
+
   // Cria a caixa do grafico.
   const chartBox = document.createElement("div");
   chartBox.classList.add("message-chart");
@@ -515,8 +536,11 @@ function createChartElement(chart) {
       return;
     }
 
+    // Pizza e doughnut nao usam eixos x/y.
+    // Essa variavel controla legenda, tooltip e scales.
     const isPieChart = chart.type === "pie" || chart.type === "doughnut";
 
+    // Configuracao base comum para qualquer tipo de grafico.
     const config = {
       type: chart.type || "bar",
       data: {
@@ -554,6 +578,7 @@ function createChartElement(chart) {
                   ? ((value / total) * 100).toFixed(1)
                   : 0;
 
+                // Em pizza mostramos tambem o percentual de participacao.
                 if (isPieChart) {
                   return `${label}: ${value.toLocaleString("pt-BR")} (${percent}%)`;
                 }
@@ -566,7 +591,9 @@ function createChartElement(chart) {
       }
     };
 
-    // Grafico de barras precisa de eixo x/y. Pizza nao usa escalas.
+    // Grafico de barras precisa de eixo x/y.
+    // Pizza/doughnut nao pode receber "scales", porque Chart.js trata
+    // esses tipos como graficos radiais e pode quebrar o layout.
     if (!isPieChart) {
       config.options.scales = {
         x: {
@@ -1074,6 +1101,8 @@ async function handleSubmit(event) {
         historyBeforeSubmit,
         file,
         memories,
+        // Envia a conversa para o backend guardar o grafico desta planilha
+        // no cache correto.
         conversationId
       );
 
@@ -1089,14 +1118,18 @@ async function handleSubmit(event) {
         message,
         [...historyBeforeSubmit, { role: "user", content: message }],
         memories,
+        // Permite que /chat recupere graficos gerados no upload anterior.
         conversationId
       );
 
       console.log("RESPOSTA DO CHAT:", data);
     }
 
-    // Pega a resposta da IA
-    const reply = data.reply || "Sem resposta da IA.";
+    // Pega a resposta da IA.
+    // Se o backend trouxe um grafico visual, removemos blocos JSON que a IA
+    // possa ter escrito no texto para nao mostrar codigo cru na conversa.
+    const rawReply = data.reply || "Sem resposta da IA.";
+    const reply = data.chart ? removeChartJsonBlocks(rawReply) : rawReply;
     
     console.log("VAI EXIBIR NO CHAT:", reply);
 

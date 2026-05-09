@@ -60,10 +60,16 @@ const { analyzePdfWithGemini } = require("./services/documentService.JS");
 
 const app = express();
 
-// Guarda o ultimo grafico extraido de Excel por conversa.
-// Assim, se o usuario enviar a planilha e depois pedir "grafico de pizza",
-// a rota /chat ainda consegue montar o grafico sem novo upload.
+// Cache temporario dos graficos extraidos de planilhas.
+// Quando o usuario envia um Excel/CSV, o backend cria um objeto chart
+// com labels, values e metadados das colunas usadas.
+// Esse objeto fica guardado pelo id da conversa para permitir pedidos futuros,
+// por exemplo: depois de enviar a planilha, o usuario pode pedir
+// "agora faz um grafico de pizza" sem precisar reenviar o arquivo.
 const chartCacheByConversation = new Map();
+
+// Fallback simples para o ultimo grafico gerado.
+// Ajuda quando ainda nao ha conversationId disponivel ou em testes locais.
 let lastWorkbookChart = null;
 
 // ----------------------------------------------------------
@@ -515,6 +521,9 @@ function generateChartFromWorkbook(workbook, userMessage = "") {
 }
 
 function normalizeChartText(value) {
+  // Deixa o texto em um formato facil de comparar:
+  // minusculo e sem acentos. Assim "gráfico", "grafico" e "GRAFICO"
+  // sao tratados do mesmo jeito.
   return String(value || "")
     .toLowerCase()
     .normalize("NFD")
@@ -524,6 +533,9 @@ function normalizeChartText(value) {
 function getRequestedChartType(userMessage = "") {
   const normalizedMessage = normalizeChartText(userMessage);
 
+  // Palavras que indicam grafico de pizza/participacao percentual.
+  // Essa regra vem antes da regra de barras porque a frase pode conter
+  // "grafico de pizza"; se "grafico" fosse lido primeiro, viraria bar.
   if (
     normalizedMessage.includes("pizza") ||
     normalizedMessage.includes("setor") ||
@@ -534,6 +546,9 @@ function getRequestedChartType(userMessage = "") {
     return "pie";
   }
 
+  // Palavras que indicam grafico "normal", de barras/colunas/ranking.
+  // Inclui termos mais naturais que o usuario costuma usar, como
+  // "grafico normal", "valores absolutos" ou "outro grafico".
   if (
     normalizedMessage.includes("barra") ||
     normalizedMessage.includes("barras") ||
@@ -559,8 +574,11 @@ function getRequestedChartType(userMessage = "") {
 function rememberWorkbookChart(conversationId, chart) {
   if (!chart) return;
 
+  // Guarda globalmente o ultimo grafico para fallback.
   lastWorkbookChart = chart;
 
+  // Se a conversa tem id, guarda o grafico especificamente para ela.
+  // Isso evita misturar dados entre conversas diferentes.
   if (conversationId) {
     chartCacheByConversation.set(conversationId, chart);
   }
@@ -569,11 +587,15 @@ function rememberWorkbookChart(conversationId, chart) {
 function buildChartFromCachedData(baseChart, userMessage = "") {
   if (!baseChart) return null;
 
+  // Verifica se a mensagem atual realmente pede algum grafico.
+  // Se nao pedir, retorna null para nao mostrar grafico em toda resposta.
   const requestedType = getRequestedChartType(userMessage);
 
   // So gera grafico em mensagem normal quando o usuario pede explicitamente.
   if (!requestedType) return null;
 
+  // Reconstrui o ranking usando labels/values ja salvos do Excel.
+  // Assim a rota /chat consegue criar outro grafico sem reler o arquivo.
   let ranking = (baseChart.labels || [])
     .map((label, index) => ({
       label,
@@ -584,6 +606,8 @@ function buildChartFromCachedData(baseChart, userMessage = "") {
 
   if (ranking.length === 0) return null;
 
+  // Pizza com muitos pedacos fica ilegivel.
+  // Mantemos os 6 maiores e somamos o resto em "Outros".
   if (requestedType === "pie" && ranking.length > 6) {
     const topItems = ranking.slice(0, 6);
     const others = ranking.slice(6);
@@ -598,9 +622,12 @@ function buildChartFromCachedData(baseChart, userMessage = "") {
 
     ranking = topItems;
   } else {
+    // Barras continuam com top 10 para caber melhor no chat.
     ranking = ranking.slice(0, 10);
   }
 
+  // Este objeto e o contrato com o front-end.
+  // O chat.js usa type/labels/values para montar o Chart.js.
   return {
     type: requestedType,
     title:
@@ -715,7 +742,13 @@ ${message}
       const workbook = XLSX.readFile(req.file.path);
 
       // Gera dados de gráfico automaticamente
+      // A mensagem do usuario entra junto para decidir se o primeiro
+      // grafico deve ser pizza ou barras.
       chart = generateChartFromWorkbook(workbook, message);
+
+      // Guarda o grafico no cache da conversa.
+      // Depois disso, o usuario pode pedir outro grafico no /chat
+      // sem reenviar o mesmo Excel.
       rememberWorkbookChart(conversationId, chart);
       console.log("Grafico gerado a partir do Excel:", chart);
 
@@ -768,6 +801,8 @@ ${limitedExcelContent}
 
 Observação:
 Se houver dados numéricos e categorias, analise os maiores valores e explique o ranking.
+Não escreva JSON, configuração de Chart.js ou bloco de código de gráfico na resposta.
+Se o usuário pedir gráfico, apenas explique o que ele mostra; o sistema desenha o gráfico visual separadamente.
           `.trim()
         }
       ];
@@ -912,9 +947,14 @@ app.post("/chat", async (req, res) => {
       });
     }
 
+    // Busca o grafico salvo para esta conversa.
+    // Se nao existir, usa o ultimo grafico como fallback.
     const cachedChart = conversationId
       ? chartCacheByConversation.get(conversationId)
       : lastWorkbookChart;
+
+    // Se a mensagem atual pedir grafico, recria o chart usando
+    // os dados em cache. Se nao pedir, a funcao retorna null.
     const chart = buildChartFromCachedData(cachedChart || lastWorkbookChart, message);
 
     if (chart) {

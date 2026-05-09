@@ -846,6 +846,7 @@ body.sidebar-collapsed .chat-sidebar {
 ========================================================== */
 
 .message-chart {
+  /* Caixa visual que envolve o titulo e o canvas do Chart.js. */
   margin-top: 14px;
   padding: 16px;
   border-radius: 18px;
@@ -862,6 +863,9 @@ body.sidebar-collapsed .chat-sidebar {
 }
 
 .chart-canvas-wrapper {
+  /* O Chart.js precisa de um container com altura definida quando usamos
+     maintainAspectRatio: false; sem isso o grafico pode ficar achatado
+     ou ocupar espaco errado dentro da mensagem. */
   position: relative;
   width: 100%;
   height: 320px;
@@ -873,5 +877,6 @@ body.sidebar-collapsed .chat-sidebar {
 }
 
 .message-chart-pie .chart-canvas-wrapper {
+  /* Pizza usa legenda embaixo, entao ganha um pouco mais de altura. */
   height: 360px;
 }

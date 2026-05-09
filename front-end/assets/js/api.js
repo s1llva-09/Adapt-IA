@@ -145,6 +145,8 @@ export async function sendMessage(provider, assistantType, message, history, mem
       message,       // Texto enviado pelo usuário
       history,       // Array com histórico da conversa atual
       memories,
+      // O conversationId permite que o backend relacione esta mensagem
+      // com graficos/planilhas enviados anteriormente na mesma conversa.
       conversationId
     })
   });
@@ -178,6 +180,8 @@ export async function uploadFile(provider, assistantType, message, history, file
   formData.append("message", message);    // Mensagem opcional
   formData.append("history", JSON.stringify(history)); // Histórico (serializado)
   formData.append("memories", JSON.stringify(memories)); // Memorias persistentes
+  // Quando o arquivo e uma planilha, o backend guarda os dados do grafico
+  // usando esse id. Assim pedidos futuros usam a mesma planilha.
   if (conversationId) {
     formData.append("conversationId", conversationId); // Vincula graficos ao chat atual
   }
