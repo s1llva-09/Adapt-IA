@@ -852,7 +852,6 @@ body.sidebar-collapsed .chat-sidebar {
   background: rgba(15, 23, 42, 0.78);
   border: 1px solid rgba(148, 163, 184, 0.18);
   width: min(100%, 640px);
-  height: 360px;
 }
 
 .message-chart h4 {
@@ -862,7 +861,17 @@ body.sidebar-collapsed .chat-sidebar {
   font-weight: 800;
 }
 
-.message-chart canvas {
-  width: 100% !important;
-  height: 290px !important;
+.chart-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  height: 320px;
+}
+
+/* Grafico de pizza precisa ser menor para nao estourar a tela. */
+.message-chart-pie {
+  max-width: 520px;
+}
+
+.message-chart-pie .chart-canvas-wrapper {
+  height: 360px;
 }

@@ -425,7 +425,7 @@ function createAttachmentElement(role, attachment) {
 // CRIA UM GRÁFICO DENTRO DA MENSAGEM
 // ==========================================================
 
-function createChartElement(chart) {
+function createLegacyChartElement(chart) {
   // Cria a caixa do gráfico
   const chartBox = document.createElement("div");
   chartBox.classList.add("message-chart");
@@ -474,6 +474,122 @@ function createChartElement(chart) {
         }
       }
     });
+  }, 0);
+
+  return chartBox;
+}
+
+// ==========================================================
+// CRIA UM GRAFICO DENTRO DA MENSAGEM COM SUPORTE A PIZZA
+// ==========================================================
+
+function createChartElement(chart) {
+  // Cria a caixa do grafico.
+  const chartBox = document.createElement("div");
+  chartBox.classList.add("message-chart");
+
+  // Grafico de pizza/doughnut precisa de tamanho e legenda proprios.
+  if (chart.type === "pie" || chart.type === "doughnut") {
+    chartBox.classList.add("message-chart-pie");
+  }
+
+  // Titulo exibido acima do canvas.
+  const title = document.createElement("h4");
+  title.textContent = chart.title || "Gráfico";
+  chartBox.appendChild(title);
+
+  // Wrapper com altura fixa para o Chart.js calcular o tamanho corretamente.
+  const canvasWrapper = document.createElement("div");
+  canvasWrapper.classList.add("chart-canvas-wrapper");
+
+  const canvas = document.createElement("canvas");
+  canvasWrapper.appendChild(canvas);
+  chartBox.appendChild(canvasWrapper);
+
+  // Renderiza depois que o elemento entra na tela.
+  setTimeout(() => {
+    const ChartConstructor = window.Chart;
+
+    if (!ChartConstructor) {
+      console.error("Chart.js não foi carregado.");
+      return;
+    }
+
+    const isPieChart = chart.type === "pie" || chart.type === "doughnut";
+
+    const config = {
+      type: chart.type || "bar",
+      data: {
+        labels: chart.labels || [],
+        datasets: [
+          {
+            label: chart.title || "Valores",
+            data: chart.values || []
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: isPieChart,
+            position: "bottom",
+            labels: {
+              color: "#e5e7eb",
+              boxWidth: 14,
+              padding: 14
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                const label = context.label || "";
+                const value = context.raw || 0;
+                const total = context.dataset.data.reduce(
+                  (sum, item) => sum + Number(item || 0),
+                  0
+                );
+                const percent = total
+                  ? ((value / total) * 100).toFixed(1)
+                  : 0;
+
+                if (isPieChart) {
+                  return `${label}: ${value.toLocaleString("pt-BR")} (${percent}%)`;
+                }
+
+                return `${label}: ${value.toLocaleString("pt-BR")}`;
+              }
+            }
+          }
+        }
+      }
+    };
+
+    // Grafico de barras precisa de eixo x/y. Pizza nao usa escalas.
+    if (!isPieChart) {
+      config.options.scales = {
+        x: {
+          ticks: {
+            color: "#cbd5e1"
+          },
+          grid: {
+            color: "rgba(148, 163, 184, 0.12)"
+          }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: "#cbd5e1"
+          },
+          grid: {
+            color: "rgba(148, 163, 184, 0.12)"
+          }
+        }
+      };
+    }
+
+    new ChartConstructor(canvas, config);
   }, 0);
 
   return chartBox;

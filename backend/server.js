@@ -319,7 +319,7 @@ function isExcelFile(file) {
 // GERA DADOS DE GRÁFICO AUTOMATICAMENTE A PARTIR DO EXCEL
 // ==========================================================
 
-function generateChartFromWorkbook(workbook) {
+function generateChartFromWorkbook(workbook, userMessage = "") {
   try {
     // Pega a primeira aba do Excel
     const firstSheetName = workbook.SheetNames[0];
@@ -343,17 +343,41 @@ function generateChartFromWorkbook(workbook) {
     // Se não tiver colunas, não gera gráfico
     if (columns.length === 0) return null;
 
+    // Normaliza textos para comparar sem depender de maiusculas ou acentos.
+    const normalizeText = (value) =>
+      String(value || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+    // ======================================================
+    // IDENTIFICAR TIPO DO GRAFICO PEDIDO
+    // ======================================================
+
+    const normalizedMessage = normalizeText(userMessage);
+
+    // Se o usuario pedir pizza/setores/porcentagem, o backend manda "pie".
+    // Caso contrario, mantem "bar" como comportamento padrao.
+    const chartType =
+      normalizedMessage.includes("pizza") ||
+      normalizedMessage.includes("setor") ||
+      normalizedMessage.includes("setores") ||
+      normalizedMessage.includes("percentual") ||
+      normalizedMessage.includes("porcentagem")
+        ? "pie"
+        : "bar";
+
     // ======================================================
     // TENTA DESCOBRIR QUAL COLUNA É O NOME/LABEL
     // ======================================================
 
     const labelColumn =
-      columns.find((col) => col.toLowerCase().includes("cliente")) ||
-      columns.find((col) => col.toLowerCase().includes("comprador")) ||
-      columns.find((col) => col.toLowerCase().includes("fornecedor")) ||
-      columns.find((col) => col.toLowerCase().includes("produto")) ||
-      columns.find((col) => col.toLowerCase().includes("item")) ||
-      columns.find((col) => col.toLowerCase().includes("nome")) ||
+      columns.find((col) => normalizeText(col).includes("cliente")) ||
+      columns.find((col) => normalizeText(col).includes("comprador")) ||
+      columns.find((col) => normalizeText(col).includes("fornecedor")) ||
+      columns.find((col) => normalizeText(col).includes("produto")) ||
+      columns.find((col) => normalizeText(col).includes("item")) ||
+      columns.find((col) => normalizeText(col).includes("nome")) ||
       columns[0];
 
     // ======================================================
@@ -361,14 +385,14 @@ function generateChartFromWorkbook(workbook) {
     // ======================================================
 
     const valueColumn =
-      columns.find((col) => col.toLowerCase().includes("total")) ||
-      columns.find((col) => col.toLowerCase().includes("valor")) ||
-      columns.find((col) => col.toLowerCase().includes("venda")) ||
-      columns.find((col) => col.toLowerCase().includes("compra")) ||
-      columns.find((col) => col.toLowerCase().includes("quantidade")) ||
-      columns.find((col) => col.toLowerCase().includes("qtd")) ||
+      columns.find((col) => normalizeText(col).includes("total")) ||
+      columns.find((col) => normalizeText(col).includes("valor")) ||
+      columns.find((col) => normalizeText(col).includes("venda")) ||
+      columns.find((col) => normalizeText(col).includes("compra")) ||
+      columns.find((col) => normalizeText(col).includes("quantidade")) ||
+      columns.find((col) => normalizeText(col).includes("qtd")) ||
       columns.find((col) => col.toLowerCase().includes("preço")) ||
-      columns.find((col) => col.toLowerCase().includes("preco"));
+      columns.find((col) => normalizeText(col).includes("preco"));
 
     // Se não encontrou coluna numérica, não gera gráfico
     if (!valueColumn) return null;
@@ -430,24 +454,46 @@ function generateChartFromWorkbook(workbook) {
     // CRIA RANKING DO MAIOR PARA O MENOR
     // ======================================================
 
-    const ranking = Object.entries(grouped)
+    let ranking = Object.entries(grouped)
       .map(([label, value]) => ({
         label,
         value
       }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
+      .sort((a, b) => b.value - a.value);
 
     // Se não gerou ranking, não retorna gráfico
     if (ranking.length === 0) return null;
+
+    // Para grafico de pizza, muitos itens ficam feios.
+    // Entao pegamos os 6 maiores e juntamos o restante em "Outros".
+    if (chartType === "pie" && ranking.length > 6) {
+      const topItems = ranking.slice(0, 6);
+      const others = ranking.slice(6);
+      const otherTotal = others.reduce((sum, item) => sum + item.value, 0);
+
+      if (otherTotal > 0) {
+        topItems.push({
+          label: "Outros",
+          value: otherTotal
+        });
+      }
+
+      ranking = topItems;
+    } else {
+      // Para barras, pega top 10.
+      ranking = ranking.slice(0, 10);
+    }
 
     // ======================================================
     // RETORNA O OBJETO DO GRÁFICO PARA O FRONT
     // ======================================================
 
     return {
-      type: "bar",
-      title: `Top ${ranking.length} por ${valueColumn}`,
+      type: chartType,
+      title:
+        chartType === "pie"
+          ? `Distribuição por ${labelColumn}`
+          : `Top ${ranking.length} por ${valueColumn}`,
       labels: ranking.map((item) => item.label),
       values: ranking.map((item) => item.value),
       meta: {
@@ -563,7 +609,7 @@ ${message}
       const workbook = XLSX.readFile(req.file.path);
 
       // Gera dados de gráfico automaticamente
-      chart = generateChartFromWorkbook(workbook);
+      chart = generateChartFromWorkbook(workbook, message);
 
       //Essa variavel vai juntar o conteudo de todas as abas da planilha 
       let excelContent = "";
