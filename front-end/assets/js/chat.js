@@ -1073,7 +1073,8 @@ async function handleSubmit(event) {
         message || "Analise este arquivo.",
         historyBeforeSubmit,
         file,
-        memories
+        memories,
+        conversationId
       );
 
       console.log("RESPOSTA DO UPLOAD:", data);
@@ -1087,7 +1088,8 @@ async function handleSubmit(event) {
         assistantType,
         message,
         [...historyBeforeSubmit, { role: "user", content: message }],
-        memories
+        memories,
+        conversationId
       );
 
       console.log("RESPOSTA DO CHAT:", data);

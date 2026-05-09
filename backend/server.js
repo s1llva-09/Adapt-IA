@@ -60,6 +60,12 @@ const { analyzePdfWithGemini } = require("./services/documentService.JS");
 
 const app = express();
 
+// Guarda o ultimo grafico extraido de Excel por conversa.
+// Assim, se o usuario enviar a planilha e depois pedir "grafico de pizza",
+// a rota /chat ainda consegue montar o grafico sem novo upload.
+const chartCacheByConversation = new Map();
+let lastWorkbookChart = null;
+
 // ----------------------------------------------------------
 // CONFIGURAÇÃO DE MIDDLEWARES
 // ----------------------------------------------------------
@@ -508,6 +514,95 @@ function generateChartFromWorkbook(workbook, userMessage = "") {
   }
 }
 
+function normalizeChartText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function getRequestedChartType(userMessage = "") {
+  const normalizedMessage = normalizeChartText(userMessage);
+
+  if (
+    normalizedMessage.includes("pizza") ||
+    normalizedMessage.includes("setor") ||
+    normalizedMessage.includes("setores") ||
+    normalizedMessage.includes("percentual") ||
+    normalizedMessage.includes("porcentagem")
+  ) {
+    return "pie";
+  }
+
+  if (
+    normalizedMessage.includes("barra") ||
+    normalizedMessage.includes("barras") ||
+    normalizedMessage.includes("ranking") ||
+    normalizedMessage.includes("top")
+  ) {
+    return "bar";
+  }
+
+  return null;
+}
+
+function rememberWorkbookChart(conversationId, chart) {
+  if (!chart) return;
+
+  lastWorkbookChart = chart;
+
+  if (conversationId) {
+    chartCacheByConversation.set(conversationId, chart);
+  }
+}
+
+function buildChartFromCachedData(baseChart, userMessage = "") {
+  if (!baseChart) return null;
+
+  const requestedType = getRequestedChartType(userMessage);
+
+  // So gera grafico em mensagem normal quando o usuario pede explicitamente.
+  if (!requestedType) return null;
+
+  let ranking = (baseChart.labels || [])
+    .map((label, index) => ({
+      label,
+      value: Number((baseChart.values || [])[index] || 0)
+    }))
+    .filter((item) => Number.isFinite(item.value))
+    .sort((a, b) => b.value - a.value);
+
+  if (ranking.length === 0) return null;
+
+  if (requestedType === "pie" && ranking.length > 6) {
+    const topItems = ranking.slice(0, 6);
+    const others = ranking.slice(6);
+    const otherTotal = others.reduce((sum, item) => sum + item.value, 0);
+
+    if (otherTotal > 0) {
+      topItems.push({
+        label: "Outros",
+        value: otherTotal
+      });
+    }
+
+    ranking = topItems;
+  } else {
+    ranking = ranking.slice(0, 10);
+  }
+
+  return {
+    type: requestedType,
+    title:
+      requestedType === "pie"
+        ? `Distribuição por ${baseChart.meta?.labelColumn || "categoria"}`
+        : `Top ${ranking.length} por ${baseChart.meta?.valueColumn || "valor"}`,
+    labels: ranking.map((item) => item.label),
+    values: ranking.map((item) => item.value),
+    meta: baseChart.meta || null
+  };
+}
+
 // ----------------------------------------------------------
 // ROTA DE UPLOAD DE ARQUIVOS
 // ----------------------------------------------------------
@@ -532,6 +627,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const {
       provider,
       assistantType,
+      conversationId,
       message = "Analise este arquivo.",
       history = "[]",
       memories = "[]"
@@ -610,6 +706,8 @@ ${message}
 
       // Gera dados de gráfico automaticamente
       chart = generateChartFromWorkbook(workbook, message);
+      rememberWorkbookChart(conversationId, chart);
+      console.log("Grafico gerado a partir do Excel:", chart);
 
       //Essa variavel vai juntar o conteudo de todas as abas da planilha 
       let excelContent = "";
@@ -741,6 +839,7 @@ app.post("/chat", async (req, res) => {
     const {
       provider,
       assistantType,
+      conversationId,
       message,
       history = [],
       memories = []
@@ -803,8 +902,17 @@ app.post("/chat", async (req, res) => {
       });
     }
 
+    const cachedChart = conversationId
+      ? chartCacheByConversation.get(conversationId)
+      : lastWorkbookChart;
+    const chart = buildChartFromCachedData(cachedChart || lastWorkbookChart, message);
+
+    if (chart) {
+      console.log("Grafico gerado a partir do cache da conversa:", chart);
+    }
+
     // Retorna resposta para o front-end
-    return res.json({ reply });
+    return res.json({ reply, chart });
 
   } catch (error) {
     // --------------------------------------------------------

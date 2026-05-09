@@ -132,7 +132,7 @@ async function fetchWithFallback(path, options) {
 // Envia uma mensagem de texto simples para o backend.
 // Não inclui arquivos, apenas conversa por texto.
 
-export async function sendMessage(provider, assistantType, message, history, memories = []) {
+export async function sendMessage(provider, assistantType, message, history, memories = [], conversationId = null) {
   // Faz requisição POST para /chat
   const response = await fetchWithFallback("/chat", {
     method: "POST",
@@ -144,7 +144,8 @@ export async function sendMessage(provider, assistantType, message, history, mem
       assistantType, // agente empresarial escolhido; ex: financial_management
       message,       // Texto enviado pelo usuário
       history,       // Array com histórico da conversa atual
-      memories       // Memorias persistentes do agente, vindas do Supabase
+      memories,
+      conversationId
     })
   });
 
@@ -166,7 +167,7 @@ export async function sendMessage(provider, assistantType, message, history, mem
 // Envia um arquivo (imagem, PDF, texto) junto com uma mensagem.
 // Usa FormData para enviar arquivos via POST.
 
-export async function uploadFile(provider, assistantType, message, history, file, memories = []) {
+export async function uploadFile(provider, assistantType, message, history, file, memories = [], conversationId = null) {
   // Cria FormData para envio multipart/form-data
   const formData = new FormData();
 
@@ -177,6 +178,9 @@ export async function uploadFile(provider, assistantType, message, history, file
   formData.append("message", message);    // Mensagem opcional
   formData.append("history", JSON.stringify(history)); // Histórico (serializado)
   formData.append("memories", JSON.stringify(memories)); // Memorias persistentes
+  if (conversationId) {
+    formData.append("conversationId", conversationId); // Vincula graficos ao chat atual
+  }
   formData.append("file", file);          // O arquivo em si
 
   // Faz requisição POST para /upload
