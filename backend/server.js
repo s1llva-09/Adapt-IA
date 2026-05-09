@@ -537,6 +537,16 @@ function getRequestedChartType(userMessage = "") {
   if (
     normalizedMessage.includes("barra") ||
     normalizedMessage.includes("barras") ||
+    normalizedMessage.includes("coluna") ||
+    normalizedMessage.includes("colunas") ||
+    normalizedMessage.includes("normal") ||
+    normalizedMessage.includes("absoluto") ||
+    normalizedMessage.includes("absolutos") ||
+    normalizedMessage.includes("grafico") ||
+    normalizedMessage.includes("visualizacao") ||
+    normalizedMessage.includes("comparativo") ||
+    normalizedMessage.includes("comparar") ||
+    normalizedMessage.includes("outro") ||
     normalizedMessage.includes("ranking") ||
     normalizedMessage.includes("top")
   ) {
