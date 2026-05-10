@@ -291,11 +291,15 @@ function removeChartJsonBlocks(text) {
   // ```json
   // { ... configuracao do grafico ... }
   // ```
-  // Esse regex remove apenas blocos que parecem ser de grafico,
-  // preservando outros textos da resposta.
+  // Ela tambem pode tentar desenhar graficos com caracteres, tipo:
+  // ####, linhas, barras e valores dentro de um bloco ``` .
+  // Quando o backend manda data.chart, esses blocos viram duplicidade,
+  // porque o grafico visual ja sera renderizado pelo Chart.js.
   return String(text || "")
     .replace(/```json\s*[\s\S]*?(?:graph_type|datasets|labels|data|type)\s*[\s\S]*?```/gi, "")
     .replace(/```\s*[\s\S]*?(?:graph_type|datasets|labels|data|type)\s*[\s\S]*?```/gi, "")
+    .replace(/```[\s\S]*?(?:#{2,}|R\$\s*\d|--+>|[|]{2,})[\s\S]*?```/gi, "")
+    .replace(/\(?Por favor,\s*imagine um gr[áa]fico[\s\S]*?(?:\n\n|$)/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

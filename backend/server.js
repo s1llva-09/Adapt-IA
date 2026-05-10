@@ -146,6 +146,8 @@ Regras:
 - Sempre entregue uma análise completa primeiro; perguntas complementares devem ficar no final.
 - Não invente números, impostos ou regras específicas sem base no conteúdo recebido.
 - Quando houver risco contábil, fiscal ou jurídico, recomende validação com profissional responsável.
+- Quando o usuário pedir gráfico, não desenhe gráficos com texto, caracteres ASCII, blocos de código ou JSON.
+- Se houver dados suficientes para gráfico, explique a visualização em texto; o sistema exibirá o gráfico visual separadamente.
 - Responda sempre no idioma do usuário.
 - Seja claro, profissional e útil.
     `.trim();
@@ -170,6 +172,8 @@ Regras:
 - Se houver PDF, analise o conteúdo do documento.
 - Se o usuário falar de programação, responda como especialista.
 - Se mudar de assunto, adapte-se ao novo contexto.
+- Quando o usuário pedir gráfico, não desenhe gráficos com texto, caracteres ASCII, blocos de código ou JSON.
+- Se houver dados suficientes para gráfico, explique a visualização em texto; o sistema exibirá o gráfico visual separadamente.
 - Responda sempre no idioma do usuário.
 - Seja claro, natural e útil.
   `.trim();
@@ -640,6 +644,169 @@ function buildChartFromCachedData(baseChart, userMessage = "") {
   };
 }
 
+function parseBrazilianNumber(value) {
+  // Converte valores escritos no padrão brasileiro para Number.
+  // Exemplo: "R$ 1.600,00" vira 1600.
+  const normalizedValue = String(value || "")
+    .replace("R$", "")
+    .replace(/\s/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+
+  const number = Number(normalizedValue);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+function cleanChartLabel(label) {
+  // Remove markdown, bullets e pontuação que costumam aparecer antes
+  // do nome da categoria. Exemplo: "* **Contas:**" vira "Contas".
+  return String(label || "")
+    .replace(/\*\*/g, "")
+    .replace(/^[\s>*•\-–—]+/g, "")
+    .replace(/[\s:=-]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isIgnoredChartLabel(label) {
+  // Linhas como "Total" ou "Orçamento mensal" são soma geral,
+  // não categorias. Elas precisam ficar fora do gráfico para não
+  // duplicar os valores.
+  const normalizedLabel = normalizeChartText(label);
+
+  return (
+    !normalizedLabel ||
+    normalizedLabel === "total" ||
+    normalizedLabel.includes("total geral") ||
+    normalizedLabel.includes("subtotal") ||
+    normalizedLabel.includes("soma") ||
+    normalizedLabel.includes("orcamento mensal") ||
+    normalizedLabel.includes("seu orcamento") ||
+    normalizedLabel.includes("valor total") ||
+    normalizedLabel.includes("receita total") ||
+    normalizedLabel.includes("grafico")
+  );
+}
+
+function extractChartPairsFromText(text) {
+  // Procura pares "categoria + valor" em textos comuns de conversa.
+  // Exemplos aceitos:
+  // "Contas: R$ 800,00"
+  // "Estudos (R$ 500,00)"
+  // "Lazer R$ 300"
+  const chunks = String(text || "")
+    .replace(/\*\*/g, "")
+    .split(/\n|;|,(?=\s*[A-Za-zÀ-ÿ])/g);
+
+  const pairs = [];
+
+  chunks.forEach((chunk) => {
+    const textChunk = chunk.trim();
+    if (!textChunk) return;
+
+    const patterns = [
+      /^[\s>*•\-–—]*([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 _./-]{1,60}?)\s*[:=]\s*(?:R\$\s*)?([\d.]+(?:,\d{1,2})?|\d+(?:\.\d{1,2})?)\b/i,
+      /^[\s>*•\-–—]*([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 _./-]{1,60}?)\s*\(?\s*R\$\s*([\d.]+(?:,\d{1,2})?)\s*\)?/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = textChunk.match(pattern);
+      if (!match) continue;
+
+      const label = cleanChartLabel(match[1]);
+      const value = parseBrazilianNumber(match[2]);
+
+      if (value === null || isIgnoredChartLabel(label)) return;
+
+      pairs.push({ label, value });
+      return;
+    }
+  });
+
+  return pairs;
+}
+
+function buildChartFromConversationValues(history = [], userMessage = "") {
+  // Se não existe gráfico de planilha em cache, esta função tenta
+  // montar um gráfico usando valores que já apareceram no chat.
+  // Isso resolve pedidos sem arquivo, como:
+  // "Contas R$ 800, Estudos R$ 500 e Lazer R$ 300. Faça pizza."
+  const requestedType = getRequestedChartType(userMessage);
+
+  if (!requestedType) return null;
+
+  const messagesToSearch = [
+    ...history,
+    {
+      role: "user",
+      content: userMessage
+    }
+  ];
+
+  // Busca de trás para frente para usar os dados mais recentes.
+  // Assim não somamos valores antigos repetidos pela própria IA.
+  for (let index = messagesToSearch.length - 1; index >= 0; index -= 1) {
+    const content = messagesToSearch[index]?.content;
+    const pairs = extractChartPairsFromText(content);
+
+    if (pairs.length < 2) continue;
+
+    const grouped = new Map();
+
+    pairs.forEach((item) => {
+      const key = normalizeChartText(item.label);
+      const current = grouped.get(key) || {
+        label: item.label,
+        value: 0
+      };
+
+      current.value += item.value;
+      grouped.set(key, current);
+    });
+
+    let ranking = Array.from(grouped.values())
+      .filter((item) => Number.isFinite(item.value))
+      .sort((a, b) => b.value - a.value);
+
+    if (ranking.length < 2) continue;
+
+    if (requestedType === "pie" && ranking.length > 6) {
+      const topItems = ranking.slice(0, 6);
+      const others = ranking.slice(6);
+      const otherTotal = others.reduce((sum, item) => sum + item.value, 0);
+
+      if (otherTotal > 0) {
+        topItems.push({
+          label: "Outros",
+          value: otherTotal
+        });
+      }
+
+      ranking = topItems;
+    } else {
+      ranking = ranking.slice(0, 10);
+    }
+
+    // Mesmo formato usado pelo gráfico vindo do Excel.
+    // O front-end não precisa saber se a origem foi planilha ou conversa.
+    return {
+      type: requestedType,
+      title:
+        requestedType === "pie"
+          ? "Distribuição por categoria"
+          : "Comparativo por valor",
+      labels: ranking.map((item) => item.label),
+      values: ranking.map((item) => item.value),
+      meta: {
+        source: "conversation"
+      }
+    };
+  }
+
+  return null;
+}
+
 // ----------------------------------------------------------
 // ROTA DE UPLOAD DE ARQUIVOS
 // ----------------------------------------------------------
@@ -953,12 +1120,29 @@ app.post("/chat", async (req, res) => {
       ? chartCacheByConversation.get(conversationId)
       : lastWorkbookChart;
 
-    // Se a mensagem atual pedir grafico, recria o chart usando
-    // os dados em cache. Se nao pedir, a funcao retorna null.
-    const chart = buildChartFromCachedData(cachedChart || lastWorkbookChart, message);
+    // Se a mensagem atual pedir grafico, primeiro tenta usar dados salvos
+    // de planilha. Se não houver planilha em cache, tenta extrair pares
+    // categoria/valor do próprio histórico da conversa.
+    // Memorias persistentes tambem podem conter valores úteis.
+    // Exemplo: o usuário limpou a conversa, mas a memória ainda guarda
+    // "Contas R$ 800, Estudos R$ 500 e Lazer R$ 300".
+    // Por isso elas entram como fonte secundária para montar gráficos.
+    const memoryHistoryForChart = Array.isArray(memories)
+      ? memories.map((memory) => ({
+          role: "system",
+          content: memory.content || ""
+        }))
+      : [];
+
+    const chart =
+      buildChartFromCachedData(cachedChart || lastWorkbookChart, message) ||
+      buildChartFromConversationValues(
+        [...history, ...memoryHistoryForChart],
+        message
+      );
 
     if (chart) {
-      console.log("Grafico gerado a partir do cache da conversa:", chart);
+      console.log("Grafico gerado para a conversa:", chart);
     }
 
     // Retorna resposta para o front-end
