@@ -249,6 +249,14 @@ function parseExtractedMemory(rawText) {
   }
 }
 
+// ==========================================================
+// COMPRIME/RESUME UMA CONVERSA GRANDE
+// ==========================================================
+
+async function summarizeConversation(messages) {
+  //messages - lista de mensagens antigas na conversa
+}
+
 // ----------------------------------------------------------
 // ROTA DE HEALTH CHECK
 // ----------------------------------------------------------
