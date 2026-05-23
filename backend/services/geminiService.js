@@ -78,9 +78,8 @@ async function sendToGemini(messages) {
 
       // Envia a mensagem para o Gemini
       const response = await client.models.generateContent({
-        // Modelo principal: Gemini 2.5 Flash Lite
-        // Este modelo é rápido e tem bom custo-benefício
-        model: "gemini-2.5-flash-lite",
+        // Modelo principal: Gemini 2.5 Pro (chave paga)
+        model: "gemini-2.5-pro",
         
         // Conteúdo: texto simples convertido do histórico
         contents: prompt
