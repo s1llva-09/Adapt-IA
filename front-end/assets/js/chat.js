@@ -1,6 +1,6 @@
 console.log("CHAT.JS NOVO CARREGADO");
 // Importa as funções que conversam com o backend.
-import { extractMemory, sendMessage, uploadFile } from "./api.js";
+import { extractMemory, sendMessage, uploadFile, compressHistory} from "./api.js";
 import { protectPage, logout } from "./auth.js";
 import {
   createConversation,
@@ -13,11 +13,20 @@ import {
 
 // Garante que apenas usuarios logados acessem o chat.
 // Se nao houver sessao ativa no Supabase, auth.js redireciona para login.html.
-protectPage();
+protectPage()
 
 // Mesmo identificador usado no main.js e no server.js.
 // Ele diz que o usuário escolheu o agente de Gestão Financeira.
-const FINANCIAL_ASSISTANT_TYPE = "financial_management";
+const FINANCIAL_ASSISTANT_TYPE = "financial_management"
+
+// Quantidade máxima de mensagens no histórico antes de comprimir.
+// Quando ultrapassar esse número, as mensagens mais antigas viram um resumo.
+// Isso reduz os tokens enviados à IA em cada requisição.
+const MAX_HISTORY_LENGTH = 20
+
+// Quantas mensagens recentes manter intactas após a compressão.
+// Essas ficam no histórico sem serem resumidas, para manter contexto imediato.
+const RECENT_MESSAGES_TO_KEEP = 6
 
 function getBackendOrigin() {
   const hostname = window.location.hostname || "127.0.0.1";
@@ -1006,6 +1015,52 @@ function getFriendlyErrorMessage(error) {
   return message || "Ocorreu um erro ao processar sua solicitação.";
 }
 
+// ============================================================
+// FUNÇÃO: COMPRIMIR HISTÓRICO SE NECESSÁRIO
+// ============================================================
+// Verifica se o histórico passou do limite.
+// Se passou, separa as mensagens antigas das recentes,
+// pede ao backend para resumir as antigas,
+// e substitui tudo por: [resumo] + [mensagens recentes].
+
+async function maybeCompressHistory() {
+  const history = getChatHistory()
+
+  //Se ainda nao atingiu o limite, nao faz nada
+  if (history.length <= MAX_HISTORY_LENGTH) return
+
+  console.log(`Histórico tem ${history.length} mensagens, comprimindo...`)
+
+  // Separa: mensagens antigas (serão resumidas) e recentes (ficam intactas)
+  // Exemplo com 25 mensagens e RECENT_MESSAGES_TO_KEEP = 6:
+  // oldMessages = mensagens 0 a 18 (19 mensagens)
+  // recentMessages = mensagens 19 a 24 (6 mensagens)
+  const oldMessages = history.slice(0, history.length - RECENT_MESSAGES_TO_KEEP)
+  const recentMessages = history.slice(history.length - RECENT_MESSAGES_TO_KEEP)
+
+  // Pede ao backend para resumir as mensagens antigas
+  const summary = await compressHistory(oldMessages)
+
+  // Se o backend não retornou nada, mantém o histórico original
+  if (!summary) return
+
+  //Cria uma mensagem que representa o contexto comprimido
+  //usamos role "assistant" para a IA entender como parte do contexto anterior
+  const summaryMessage = {
+    role: "assistant",
+    content: `[Resumo do contexto anterior: ${summary}]`
+  }
+
+  
+  // Novo histórico: 1 mensagem de resumo + últimas mensagens recentes
+  const newHistory = [summaryMessage, ...recentMessages]
+
+  // Salva o histórico comprimido no localStorage
+  saveChatHistory(newHistory)
+
+  console.log("Histórico comprimido. Mensagens agora:", newHistory.length)
+}
+
 // Função chamada quando clica em enviar ou aperta Enter
 // Função chamada quando o usuário clica no botão Enviar ou aperta Enter
 async function handleSubmit(event) {
@@ -1039,6 +1094,16 @@ async function handleSubmit(event) {
 
   // Se não tiver mensagem nem arquivo, não envia nada
   if (!message && !file) return;
+
+  // Verifica se o histórico está longo demais antes de continuar.
+  // Se estiver, comprime as mensagens antigas em um resumo.
+  // O try/catch garante que, se falhar, o chat continua normalmente.
+  try {
+    await maybeCompressHistory();
+  } catch (error) {
+    console.error("Falha ao comprimir histórico, continuando sem compressão:", error);
+  }
+
 
   // Pega o histórico antes de adicionar a mensagem atual
   const historyBeforeSubmit = getConversationHistory();
@@ -1417,6 +1482,7 @@ async function initializeChat() {
     });
   }
 }
+
 
 // Expõe funções usadas no HTML.
 window.clearChat = clearChat;

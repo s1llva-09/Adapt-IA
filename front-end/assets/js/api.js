@@ -247,3 +247,30 @@ export async function extractMemory(
 
   return data.memory || null;
 }
+
+// ============================================================
+// FUNÇÃO: COMPRIMIR HISTÓRICO LONGO
+// ============================================================
+// Envia as mensagens antigas para o backend resumir em texto curto.
+// O backend usa o Gemini para gerar o resumo via /memory/compress.
+// Retorna uma string com o resumo, ou null se falhar.
+
+export async function compressHistory(messages) {
+  const response = await fetchWithFallback("/memory/compress", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    //Envia o array de mensagens antigas para o backend resumir
+    body: JSON.stringify({ messages })
+  })
+
+  const data = await parseResponse(response)
+
+  if (!response.ok) {
+    throw new Error(data.error || "Erro ao comprimir historico")
+  }
+
+  //Retorna o texto do resumo gerado pelo gemini, ou null
+  return data.summary || null
+}
