@@ -255,6 +255,72 @@ function parseExtractedMemory(rawText) {
 
 async function summarizeConversation(messages) {
   //messages - lista de mensagens antigas na conversa
+  // Exemplo:
+  // [
+  //   { role: "user", content: "Analise esse Excel" },
+  //   { role: "assistant", content: "Aqui está a análise..." }
+  // ]
+
+    // Aqui transformamos o array de mensagens em um texto único.
+  // Isso facilita enviar o conteúdo para a IA resumir.
+
+  const textToSummarize = messages
+    .map((msg) => {
+      //se a mensagem for do usuario
+      if (msg.role == "user") {
+        return `Usuário: ${msg.content}`
+      }
+
+     //Se a mensagem veio da IA
+     if (msg.role === "assistant") {
+      return `IA: ${msg.content}`
+     }
+
+     //se for uma mensagem de sistema ou qualquer outro tipo
+     return `Sistema: ${msg.content}`
+    })
+    .join("\n\n")
+
+  // Montamos um prompt específico para a IA resumir contexto.
+  // Esse prompt NÃO é para responder ao usuário final.
+  // Ele é apenas para gerar uma memória curta da conversa.
+
+  const summaryPrompt = [
+    {
+        role: "system",
+      content: `
+      Você é responsável por resumir conversas longas para economizar contexto.
+
+      Crie um resumo curto, objetivo e útil para continuidade da conversa.
+
+      Regras:
+      - Preserve decisões importantes.
+      - Preserve preferências do usuário.
+      - Preserve nomes de arquivos analisados.
+      - Preserve tecnologias, erros e soluções encontradas.
+      - Preserve objetivos atuais do projeto.
+      - Preserve informações sobre PDFs, imagens, Excel, gráficos e agentes usados.
+      - Não inclua detalhes inúteis.
+      - Não invente informações.
+      - Escreva em português.
+      `.trim()
+    },
+    {
+        role: "user",
+      content: `
+      Resuma a conversa abaixo para ser usada como memória/contexto futuro:
+
+      ${textToSummarize}
+      `.trim()
+    }
+  ]
+
+  // Envia o pedido de resumo para o Gemini.
+  // Aqui reaproveitamos sua função sendToGemini().
+  const summary = await sendToGemini(summaryPrompt);
+
+  // Retorna o resumo gerado.
+  return summary;
 }
 
 // ----------------------------------------------------------
@@ -1044,6 +1110,50 @@ ${fileContent}
     });
   }
 });
+
+// ==========================================================
+// ROTA PARA COMPRIMIR CONTEXTO DA CONVERSA
+// ==========================================================
+
+app.post("/memory/compress", async (req, res) => {
+  try {
+    // Recebe do front as mensagens antigas que precisam ser resumidas.
+    // Se não vier nada, usa um array vazio.
+    const { messages = [] } = req.body
+
+    // Validação básica:
+    // precisa ser um array e precisa ter pelo menos uma mensagem.
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        error: "Nenhuma mensagem enviada para compressão."
+      })
+    }
+
+    // Logs para você acompanhar no terminal.
+    console.log("Comprimindo contexto...")
+    console.log("Quantidade de mensagens:", messages.length)
+
+    // Chama a função que pede para a IA resumir as mensagens.
+    const summary = await summarizeConversation(messages)
+
+    // Mostra o resumo gerado no terminal.
+    console.log("Resumo gerado:", summary)
+
+    // Retorna o resumo para o front-end.
+    return res.json({
+      summary
+    });
+
+  } catch (error) {
+    // Se der erro, mostra no terminal.
+    console.error("Erro ao comprimir contexto:", error)
+
+    // Retorna erro para o front.
+    return res.status(500).json({
+      error: error.message || "Erro ao comprimir contexto."
+    })
+  }
+})
 
 // ----------------------------------------------------------
 // ROTA PRINCIPAL DE CHAT
