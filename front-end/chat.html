@@ -26,10 +26,21 @@
       </div>
 
       <div class="sidebar-actions">
-        <button class="secondary-btn" onclick="clearChat()">Limpar conversa</button>
+        <button class="secondary-btn" onclick="clearChat()">Nova conversa</button>
+        <button class="secondary-btn" onclick="limparConversa()">Limpar conversa</button>
         <button class="secondary-btn" onclick="goBack()">Trocar IA</button>
-        <button class="secondary-btn logout-btn" onclick="logout()">Sair</button>
       </div>
+
+      <!-- Lista de conversas antigas — preenchida pelo chat.js -->
+      <div class="sidebar-conversations">
+        <p class="sidebar-conversations-title">Histórico</p>
+        <div id="conversationList" class="conversation-list"></div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="logout-icon-btn" onclick="logout()">&#8592; Sair</button>
+      </div>
+
     </aside>
 
     <section class="chat-panel">

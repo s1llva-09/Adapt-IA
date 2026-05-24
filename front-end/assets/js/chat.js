@@ -5,6 +5,8 @@ import { protectPage, logout } from "./auth.js";
 import {
   createConversation,
   getConversationById,
+  getConversations,
+  deleteConversation,
   getMessages,
   getMemories,
   saveMemory,
@@ -197,30 +199,32 @@ function getConversationHistory() {
 // Se ainda nao existir uma conversa no localStorage, cria uma no Supabase
 // e guarda o id para as proximas mensagens continuarem na mesma conversa.
 async function getCurrentConversationId() {
-  let conversationId = localStorage.getItem("currentConversationId");
+  let conversationId = localStorage.getItem("currentConversationId")
 
   // O localStorage pode guardar um id antigo de conversa que ja foi apagada
   // no Supabase. Se usarmos esse id, o insert em messages quebra por FK.
   // Por isso validamos se a conversa ainda existe antes de reutilizar.
   if (conversationId) {
-    const existingConversation = await getConversationById(conversationId);
+    const existingConversation = await getConversationById(conversationId)
 
     if (existingConversation) {
-      return conversationId;
+      return conversationId
     }
 
-    localStorage.removeItem("currentConversationId");
+    localStorage.removeItem("currentConversationId")
   }
 
   const conversation = await createConversation(
     getAgentLabel(getAssistantType()),
     getAssistantType()
-  );
+  )
 
-  conversationId = conversation.id;
-  localStorage.setItem("currentConversationId", conversationId);
+  conversationId = conversation.id
+  localStorage.setItem("currentConversationId", conversationId)
 
-  return conversationId;
+  loadConversationList() // atualiza a sidebar com a nova conversa
+
+  return conversationId
 }
 
 // Carrega as mensagens salvas no Supabase para a conversa atual.
@@ -761,12 +765,25 @@ function removeTyping() {
   if (typing) typing.remove();
 }
 
-// Limpa a conversa.
+//limpa a tela mas continua na mesma conversa do supabase
+function limparConversa() {
+  const initialHistory = [
+    {
+      role: "assistant",
+      content: getInitialAssistantMessage(getAssistantType())
+    }
+  ]
+
+  saveChatHistory(initialHistory)
+  renderMessages()
+}
+
+// cria nova conversa e limpa o chat para começar do zero
 function clearChat() {
   // Limpar conversa nao apaga memorias persistentes.
   // Apenas remove o id da conversa atual para a proxima mensagem criar
   // uma nova conversa no Supabase.
-  localStorage.removeItem("currentConversationId");
+  localStorage.removeItem("currentConversationId")
 
   const initialHistory = [
     {
@@ -775,8 +792,9 @@ function clearChat() {
     }
   ];
 
-  saveChatHistory(initialHistory);
-  renderMessages();
+  saveChatHistory(initialHistory)
+  renderMessages()
+  loadConversationList()
 }
 
 // Volta para a tela inicial.
@@ -1059,6 +1077,129 @@ async function maybeCompressHistory() {
   saveChatHistory(newHistory)
 
   console.log("Histórico comprimido. Mensagens agora:", newHistory.length)
+}
+
+//formata a data da conversa para exibir na sidebar
+//ex: "Hoje", "Ontem", "3 dias atrás", "15 mai"
+function formatConversationDate(isoString) {
+  if (!isoString) return ""
+  const date = new Date(isoString)
+  const now = new Date()
+  const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
+
+  if (diffDays <= 0) return "Hoje"
+  if (diffDays === 1) return "Ontem"
+  if (diffDays < 7) return `${diffDays} dias atrás`
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
+}
+
+// Apaga uma conversa do Supabase.
+// Se for a conversa atual, limpa o chat e começa do zero.
+async function handleDeleteConversation(conversationId) {
+  try {
+    await deleteConversation(conversationId)
+    const currentId = localStorage.getItem("currentConversationId")
+    if (currentId === conversationId) {
+      localStorage.removeItem("currentConversationId")
+      clearChat()
+    }
+    loadConversationList()
+  } catch (error) {
+    console.error("Erro ao apagar conversa:", error)
+  }
+}
+
+// Carrega uma conversa antiga quando o usuário clica nela na sidebar.
+// Salva o id e o agente no localStorage e renderiza as mensagens.
+async function switchToConversation(conversationId, assistantType) {
+  localStorage.setItem("currentConversationId", conversationId)
+  if (assistantType) localStorage.setItem("assistantType", assistantType)
+
+  const agentLabelEl = document.getElementById("agentLabel")
+  if (agentLabelEl) agentLabelEl.textContent = getAgentLabel(assistantType)
+
+  try {
+    const messages = await getMessages(conversationId)
+    const formatted = messages.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+      attachment: msg.attachment_name
+        ? { name: msg.attachment_name, type: msg.attachment_type }
+        : null
+    }))
+    saveChatHistory(formatted)
+  } catch (error) {
+    console.error("Erro ao carregar mensagens:", error)
+  }
+
+  renderMessages()
+  loadConversationList()
+}
+
+  // Busca as conversas do Supabase e monta a lista na sidebar.
+// A conversa ativa fica com destaque visual diferente.
+async function loadConversationList() {
+  const list = document.getElementById("conversationList");
+  if (!list) return;
+
+  try {
+    const conversations = await getConversations();
+    const currentId = localStorage.getItem("currentConversationId");
+
+    list.innerHTML = "";
+
+    if (conversations.length === 0) {
+      const empty = document.createElement("p");
+      empty.classList.add("conversation-list-empty");
+      empty.textContent = "Nenhuma conversa ainda.";
+      list.appendChild(empty);
+      return;
+    }
+
+    for (const conv of conversations) {
+      const item = document.createElement("div");
+      item.classList.add("conversation-item");
+      if (conv.id === currentId) item.classList.add("active");
+
+      // Coluna com título e data
+      const info = document.createElement("div");
+      info.classList.add("conversation-item-info");
+
+      const title = document.createElement("span");
+      title.classList.add("conversation-item-title");
+      title.textContent = conv.title || "Conversa";
+
+      const date = document.createElement("span");
+      date.classList.add("conversation-item-date");
+      date.textContent = formatConversationDate(conv.created_at);
+
+      info.appendChild(title);
+      info.appendChild(date);
+
+
+      // Botão de apagar (aparece ao passar o mouse)
+      const deleteBtn = document.createElement("button");
+      deleteBtn.classList.add("conversation-item-delete");
+      deleteBtn.textContent = "×";
+      deleteBtn.title = "Apagar conversa";
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation(); // Não abre a conversa ao clicar em apagar
+        handleDeleteConversation(conv.id);
+      });
+
+      item.appendChild(info);
+      item.appendChild(deleteBtn);
+
+      // Clicar no item troca de conversa
+      item.addEventListener("click", () => {
+        switchToConversation(conv.id, conv.assistant_type);
+      });
+
+      list.appendChild(item);
+    }
+  } catch (error) {
+    console.error("Erro ao carregar lista de conversas:", error);
+  }
 }
 
 // Função chamada quando clica em enviar ou aperta Enter
@@ -1380,12 +1521,14 @@ async function initializeChat() {
 
   // Carrega mensagens salvas no Supabase e renderiza na tela
   try {
-    await loadConversationFromSupabase();
+    await loadConversationFromSupabase()
   } catch (error) {
     console.error("Erro ao carregar conversa do Supabase:", error);
   }
 
-  renderMessages();
+  renderMessages()
+  //carrega a lista de conversas da sidebar
+  loadConversationList()
 
   // Configura textarea
   setupTextarea();
@@ -1485,11 +1628,12 @@ async function initializeChat() {
 
 
 // Expõe funções usadas no HTML.
-window.clearChat = clearChat;
+window.clearChat = clearChat
+window.limparConversa = limparConversa
 window.goBack = goBack;
 window.toggleSidebar = toggleSidebar;
 // Permite usar logout() direto no HTML
 window.logout = logout;
 
 // Inicia tudo quando o HTML carregar.
-document.addEventListener("DOMContentLoaded", initializeChat);
+document.addEventListener("DOMContentLoaded", initializeChat)

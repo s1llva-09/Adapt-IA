@@ -31,7 +31,7 @@
 .chat-sidebar {
   width: 300px;
   min-width: 300px;
-  padding: 84px 22px 28px;
+  padding: 72px 22px 28px;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -93,7 +93,7 @@
 .sidebar-actions {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 /* ============================================================
@@ -102,7 +102,7 @@
 
 .secondary-btn {
   width: 100%;
-  padding: 14px 16px;
+  padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: rgba(30, 41, 59, 0.86);
@@ -121,17 +121,36 @@
   background: rgba(51, 65, 85, 0.95);
 }
 
-.logout-btn {
-  margin-top: 10px;
-  border-color: rgba(248, 113, 113, 0.28);
-  background: rgba(127, 29, 29, 0.22);
-  color: #fecaca;
+.sidebar-footer {
+  flex-shrink: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
-.logout-btn:hover {
+.logout-icon-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 14px;
+  background: rgba(127, 29, 29, 0.18);
+  color: #fca5a5;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.logout-icon-btn:hover {
+  background: rgba(153, 27, 27, 0.32);
   border-color: rgba(248, 113, 113, 0.45);
-  background: rgba(153, 27, 27, 0.35);
-  color: #fee2e2;
+  transform: translateY(-2px);
 }
 
 .toggle-sidebar {
@@ -879,4 +898,123 @@ body.sidebar-collapsed .chat-sidebar {
 .message-chart-pie .chart-canvas-wrapper {
   /* Pizza usa legenda embaixo, entao ganha um pouco mais de altura. */
   height: 360px;
+}
+
+/* ============================================================
+   Lista de conversas na sidebar
+   ============================================================ */
+
+/* Container que cresce para preencher o espaço restante da sidebar */
+.sidebar-conversations {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-conversations-title {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Lista scrollável quando tiver muitas conversas */
+.conversation-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conversation-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.conversation-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+}
+
+.conversation-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.conversation-item:hover {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: var(--border);
+}
+
+/* Conversa atualmente aberta fica destacada */
+.conversation-item.active {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.conversation-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Título truncado com reticências se for longo */
+.conversation-item-title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-item-date {
+  color: var(--text-soft);
+  font-size: 0.76rem;
+}
+
+/* Botão × fica invisível e aparece ao passar o mouse no item */
+.conversation-item-delete {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 1.1rem;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+}
+
+.conversation-item:hover .conversation-item-delete {
+  opacity: 1;
+}
+
+.conversation-item-delete:hover {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fecaca;
+}
+
+.conversation-list-empty {
+  padding: 16px 0;
+  color: var(--text-soft);
+  font-size: 0.86rem;
+  text-align: center;
 }
