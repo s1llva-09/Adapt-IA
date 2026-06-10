@@ -14,7 +14,18 @@
     <aside class="chat-sidebar">
       <div class="sidebar-header">
         <h2>Adapt IA</h2>
-        <p>Converse naturalmente. A IA entende o contexto ao longo das mensagens.</p>
+      </div>
+
+      <div class="sidebar-actions">
+        <button class="sidebar-icon-btn" onclick="clearChat()" title="Nova conversa" aria-label="Nova conversa">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="sidebar-icon-btn sidebar-icon-btn--danger" onclick="limparConversa()" title="Limpar conversa" aria-label="Limpar conversa">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+        <button class="sidebar-icon-btn" onclick="goBack()" title="Trocar IA" aria-label="Trocar IA">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
       </div>
 
       <div class="info-box">
@@ -23,12 +34,6 @@
         <p class="info-box-detail">
           Motor: <span id="providerLabel">-</span>
         </p>
-      </div>
-
-      <div class="sidebar-actions">
-        <button class="secondary-btn" onclick="clearChat()">Nova conversa</button>
-        <button class="secondary-btn" onclick="limparConversa()">Limpar conversa</button>
-        <button class="secondary-btn" onclick="goBack()">Trocar IA</button>
       </div>
 
       <!-- Lista de conversas antigas — preenchida pelo chat.js -->
@@ -74,9 +79,7 @@
           Botão do clipe.
           Agora ele abre um menu para escolher o tipo de arquivo.
         -->
-        <button type="button" class="file-btn" id="fileMenuButton">
-          <img src="assets/paperclip.svg" alt="Anexar arquivo" class="file-icon">
-        </button>
+        <button type="button" class="file-btn" id="fileMenuButton">+</button>
 
         <!-- Menu de tipos de arquivo -->
         <div id="fileTypeMenu" class="file-type-menu hidden">

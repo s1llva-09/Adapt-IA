@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adapt IA - Painel Admin</title>
+  <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="stylesheet" href="assets/styles/index.css">
+  <link rel="stylesheet" href="assets/styles/admin.css">
+</head>
+<body class="admin-body">
+
+  <header class="admin-header">
+    <div class="admin-header-left">
+      <span class="admin-header-brand">Adapt IA</span>
+      <div class="admin-header-divider"></div>
+      <h1 class="admin-header-title">Painel Admin</h1>
+    </div>
+    <button class="admin-back-btn" onclick="window.location.href='index.html'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Voltar
+    </button>
+  </header>
+
+  <main class="admin-main">
+
+    <section class="admin-card">
+      <div class="admin-card-title">
+        <span class="admin-card-title-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        </span>
+        <h2>Criar Usuário</h2>
+      </div>
+
+      <form id="createUserForm" class="admin-form">
+        <div class="admin-form-row">
+          <div class="form-group">
+            <label for="newEmail">E-mail</label>
+            <input type="email" id="newEmail" placeholder="usuario@empresa.com" required>
+          </div>
+          <div class="form-group">
+            <label for="newPassword">Senha temporária</label>
+            <input type="password" id="newPassword" placeholder="Mínimo 6 caracteres" required>
+          </div>
+          <div class="form-group">
+            <label for="newRole">Perfil</label>
+            <select id="newRole">
+              <option value="user">Usuário</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Agentes permitidos</label>
+          <div id="agentCheckboxesCreate" class="agent-checkboxes"></div>
+        </div>
+
+        <p id="createUserError" class="form-error hidden"></p>
+
+        <button type="submit" class="admin-submit-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Criar Usuário</span>
+        </button>
+      </form>
+    </section>
+
+    <section class="admin-card">
+      <div class="admin-card-header">
+        <div class="admin-card-title">
+          <span class="admin-card-title-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </span>
+          <h2>Usuários Cadastrados <span id="userCount" class="admin-user-count hidden"></span></h2>
+        </div>
+        <button class="admin-refresh-btn" id="refreshUsersBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Atualizar
+        </button>
+      </div>
+
+      <p id="loadingUsers" class="admin-loading">Carregando usuários...</p>
+
+      <div class="admin-table-wrapper hidden" id="userTableWrapper">
+        <table class="admin-table" id="userTable">
+          <thead>
+            <tr>
+              <th>E-mail</th>
+              <th>Perfil</th>
+              <th>Agentes</th>
+              <th>Cadastro</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="agentsModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Agentes — <span id="modalUserEmail"></span></h3>
+      <div id="modalAgentCheckboxes" class="agent-checkboxes"></div>
+      <p id="modalError" class="form-error hidden"></p>
+      <div class="modal-actions">
+        <button class="modal-cancel-btn" id="modalCancelBtn">Cancelar</button>
+        <button class="admin-submit-btn" id="modalSaveBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Salvar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="assets/js/admin.js"></script>
+</body>
+</html>

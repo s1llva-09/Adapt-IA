@@ -6,7 +6,8 @@
 // a preferência e redireciona para a página de chat.
 // ============================================================
 //acessa as paginas apenas se estiver logado
-import { protectPage } from "./auth.js";
+import { protectPage, getSession } from "./auth.js";
+import { fetchWithFallback } from "./api.js";
 protectPage();
 
 // Provider padrão usado quando o usuário ainda não escolheu Gemini/OpenAI.
@@ -204,9 +205,29 @@ function abrirGestaoFinanceira() {
 //Permite chamar a função direto do html
 window.abrirGestaoFinanceira = abrirGestaoFinanceira
 
+// Mostra o link do Painel Admin no topbar apenas se o usuário for admin
+async function setupAdminLink() {
+  const session = await getSession();
+  if (!session) return;
+
+  try {
+    const res = await fetchWithFallback("/profile", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+    if (data.profile?.role === "admin") {
+      document.getElementById("adminNavLink")?.classList.remove("hidden");
+    }
+  } catch (e) {
+    // Perfil indisponível, não mostra o link
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   setupProviderButtons();
   setupBackButton();
+  setupAdminLink();
 });
 
 // ============================================================

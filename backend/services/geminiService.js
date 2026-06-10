@@ -151,9 +151,62 @@ async function sendToGemini(messages) {
   }
 }
 
+// Igual ao sendToGemini, mas envia cada pedaço assim que chega.
+// onChunk é chamado com cada texto parcial recebido.
+// Retorna o texto completo ao final.
+async function sendToGeminiStream(messages, onChunk) {
+  const prompt = messages
+    .map((msg) => {
+      if (msg.role === "system") return `Sistema: ${msg.content}`
+      if (msg.role === "assistant") return `IA: ${msg.content}`
+      return `Usuário: ${msg.content}`
+    })
+    .join("\n")
+
+  console.log("Iniciando stream Gemini...")
+
+  // Tenta gemini-2.5-pro primeiro; se falhar, cai para gemini-2.5-flash
+  const modelsToTry = ["gemini-2.5-pro", "gemini-2.5-flash"]
+
+  for (const model of modelsToTry) {
+    try {
+      console.log(`Stream tentando modelo: ${model}`)
+
+      const stream = await client.models.generateContentStream({
+        model,
+        contents: prompt
+      })
+
+      let fullText = ""
+
+      for await (const chunk of stream) {
+        const text = chunk.text || ""
+        if (text) {
+          fullText += text
+          onChunk(text)
+        }
+      }
+
+      return fullText
+
+    } catch (error) {
+      console.error(`Stream falhou com ${model}:`, error.message)
+
+      // Se ainda há outro modelo para tentar, continua
+      if (model !== modelsToTry[modelsToTry.length - 1]) {
+        console.log("Tentando próximo modelo...")
+        continue
+      }
+
+      // Último modelo também falhou
+      throw new Error(error.message || "Erro ao gerar resposta com Gemini.")
+    }
+  }
+}
+
 // ----------------------------------------------------------
 // EXPORTAÇÃO
 // ----------------------------------------------------------
 // Exporta a função para ser usada em server.js
 
-module.exports = { sendToGemini };
+module.exports = { sendToGemini, sendToGeminiStream };

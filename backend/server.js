@@ -42,7 +42,39 @@ require("dotenv").config({ path: "./backend/.env" });
 
 // Serviços que encapsulam a lógica de comunicação com as APIs
 const { sendToOpenAI } = require("./services/openaiService");
-const { sendToGemini } = require("./services/geminiService");
+const { sendToGemini, sendToGeminiStream } = require("./services/geminiService");
+
+// ----------------------------------------------------------
+// SUPABASE ADMIN
+// ----------------------------------------------------------
+// Usa a service_role key (não a anon key) para operações privilegiadas:
+// criar usuários, listar todos os usuários, verificar roles, deletar contas.
+// Adicione no .env: SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY
+const { createClient } = require("@supabase/supabase-js");
+
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// Middleware: bloqueia a rota se o usuário não tiver role 'admin' na tabela profiles.
+// Lê o JWT do header Authorization, verifica com o Supabase e consulta o perfil.
+async function requireAdmin(req, res, next) {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Token ausente." });
+
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: "Token inválido." });
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles").select("role").eq("id", user.id).single();
+
+  if (!profile || profile.role !== "admin")
+    return res.status(403).json({ error: "Acesso negado. Apenas administradores." });
+
+  req.user = user;
+  next();
+}
 
 // Serviço para extrair conteúdo de arquivos
 // (verifica se é imagem, PDF, texto, etc)
@@ -1279,6 +1311,175 @@ app.post("/chat", async (req, res) => {
   }
 });
 
+// Versão com streaming da rota /chat.
+// Usa SSE (Server-Sent Events) para enviar o texto conforme é gerado.
+// O front-end lê os chunks e exibe progressivamente, igual ao ChatGPT.
+app.post("/chat-stream", async (req, res) => {
+  const {
+    provider,
+    assistantType,
+    conversationId,
+    message,
+    history = [],
+    memories = []
+  } = req.body
+
+  if (!provider || !message) {
+    res.status(400).json({
+      error: "provider e message são obrigatórios"
+    })
+  }
+
+  // Cabeçalhos SSE: mantém a conexão aberta e envia eventos de texto
+  res.setHeader("Content-Type", "text/event-stream")
+  res.setHeader("Cache-Control", "no-cache")
+  res.setHeader("Connection", "keep-alive")
+  res.flushHeaders()
+
+  const systemPrompt = {
+    role: "system",
+    content: getSystemPrompt(assistantType, memories)
+  }
+  const msgs = [systemPrompt, ...history]
+
+  let fullReply = ""
+
+  try {
+    if (provider === "gemini") {
+      // Streaming real: envia cada chunk assim que o Gemini gerar
+      fullReply = await sendToGeminiStream(msgs, (chunk) => {
+        res.write(`data: ${JSON.stringify({ chunk })}\n\n`)
+      })
+    } else if (provider === "openai") {
+      // OpenAI sem streaming por enquanto: manda a resposta completa de uma vez
+      fullReply = await sendToOpenAI(msgs)
+      res.write(`data: ${JSON.stringify({ chunk: fullReply })}\n\n`)
+    }else {
+      res.write(`data: ${JSON.stringify({ error: "Provedor inválido." })}\n\n`)
+      return res.end()
+    }
+
+    // Lógica de gráfico (igual à rota /chat)
+    const cachedChart = conversationId
+      ? chartCacheByConversation.get(conversationId)
+      : lastWorkbookChart
+
+      const memoryHistoryForChart = Array.isArray(memories)
+      ? memories.map((m) => ({ role: "system", content: m.content || "" }))
+      : []
+
+      const chart =
+      buildChartFromCachedData(cachedChart || lastWorkbookChart, message) ||
+      buildChartFromConversationValues([...history, ...memoryHistoryForChart], message)
+
+      // Evento final: sinaliza que acabou e envia o gráfico se houver
+      res.write(`data: ${JSON.stringify({ done: true, chart: chart || null })}\n\n`);
+      res.end()
+      
+  } catch (error) {
+    console.error("Erro no /chat/stream:", error);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.end();
+  }
+})
+
+// ----------------------------------------------------------
+// ROTA: Perfil do usuário atual
+// ----------------------------------------------------------
+// Retorna o role e os agentes permitidos do usuário logado.
+// O front-end usa isso para mostrar/esconder o menu Admin.
+
+app.get("/profile", async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Token ausente." });
+
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: "Token inválido." });
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles").select("*").eq("id", user.id).single();
+
+  res.json({ profile: profile || { id: user.id, role: "user", allowed_agents: [] } });
+});
+
+// ----------------------------------------------------------
+// ROTA: Listar todos os usuários (admin)
+// ----------------------------------------------------------
+
+app.get("/admin/users", requireAdmin, async (req, res) => {
+  const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
+  if (error) return res.status(500).json({ error: error.message });
+
+  const { data: profiles } = await supabaseAdmin.from("profiles").select("*");
+  const profileMap = {};
+  (profiles || []).forEach((p) => (profileMap[p.id] = p));
+
+  const result = users.map((u) => ({
+    id: u.id,
+    email: u.email,
+    created_at: u.created_at,
+    role: profileMap[u.id]?.role || "user",
+    allowed_agents: profileMap[u.id]?.allowed_agents || []
+  }));
+
+  res.json({ users: result });
+});
+
+// ----------------------------------------------------------
+// ROTA: Criar usuário (admin)
+// ----------------------------------------------------------
+
+app.post("/admin/users", requireAdmin, async (req, res) => {
+  const { email, password, role = "user", allowed_agents = [] } = req.body;
+  if (!email || !password)
+    return res.status(400).json({ error: "Email e senha são obrigatórios." });
+
+  const { data: { user }, error } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true
+  });
+
+  if (error) return res.status(400).json({ error: error.message });
+
+  await supabaseAdmin.from("profiles").upsert({ id: user.id, role, allowed_agents });
+
+  res.json({ user: { id: user.id, email: user.email, role, allowed_agents } });
+});
+
+// ----------------------------------------------------------
+// ROTA: Atualizar perfil de usuário (admin)
+// ----------------------------------------------------------
+
+app.put("/admin/users/:userId", requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const { role, allowed_agents } = req.body;
+
+  const updates = {};
+  if (role !== undefined) updates.role = role;
+  if (allowed_agents !== undefined) updates.allowed_agents = allowed_agents;
+
+  const { error } = await supabaseAdmin
+    .from("profiles").update(updates).eq("id", userId);
+
+  if (error) return res.status(400).json({ error: error.message });
+
+  res.json({ success: true });
+});
+
+// ----------------------------------------------------------
+// ROTA: Deletar usuário (admin)
+// ----------------------------------------------------------
+
+app.delete("/admin/users/:userId", requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+  if (error) return res.status(400).json({ error: error.message });
+
+  res.json({ success: true });
+});
+
 // ----------------------------------------------------------
 // INICIALIZAÇÃO DO SERVIDOR
 // ----------------------------------------------------------
@@ -1290,4 +1491,4 @@ const PORT = process.env.PORT || 3000;
 // Inicia o servidor e exibe mensagem no console
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
-});
+})

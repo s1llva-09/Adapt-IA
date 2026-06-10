@@ -1,12 +1,13 @@
 console.log("CHAT.JS NOVO CARREGADO");
 // Importa as funções que conversam com o backend.
-import { extractMemory, sendMessage, uploadFile, compressHistory} from "./api.js";
+import { extractMemory, sendMessage, uploadFile, compressHistory, getStreamResponse } from "./api.js";
 import { protectPage, logout } from "./auth.js";
 import {
   createConversation,
   getConversationById,
   getConversations,
   deleteConversation,
+  updateConversationTitle,
   getMessages,
   getMemories,
   saveMemory,
@@ -228,9 +229,39 @@ async function getCurrentConversationId() {
 }
 
 // Carrega as mensagens salvas no Supabase para a conversa atual.
-// Se a conversa estiver vazia, cria a mensagem inicial no localStorage e no banco.
+// Carrega as mensagens do Supabase sem criar conversa nova.
+// A conversa só é criada em handleSubmit, quando o usuário envia a primeira mensagem.
+// Isso evita conversas vazias no banco ao abrir a página ou clicar em "Nova conversa".
 async function loadConversationFromSupabase() {
-  const conversationId = await getCurrentConversationId();
+  // Lê apenas o localStorage — não chama getCurrentConversationId para não criar
+  const conversationId = localStorage.getItem("currentConversationId");
+
+  // Sem conversa salva: exibe mensagem inicial local, sem tocar o Supabase
+  if (!conversationId) {
+    saveChatHistory([{
+      role: "assistant",
+      content: getInitialAssistantMessage(getAssistantType())
+    }]);
+    return;
+  }
+
+  // Valida se a conversa ainda existe no Supabase (pode ter sido apagada externamente)
+  let existingConversation;
+  try {
+    existingConversation = await getConversationById(conversationId);
+  } catch (e) {
+    existingConversation = null;
+  }
+
+  if (!existingConversation) {
+    localStorage.removeItem("currentConversationId");
+    saveChatHistory([{
+      role: "assistant",
+      content: getInitialAssistantMessage(getAssistantType())
+    }]);
+    return;
+  }
+
   const messages = await getMessages(conversationId);
 
   if (messages.length === 0) {
@@ -238,22 +269,16 @@ async function loadConversationFromSupabase() {
       role: "assistant",
       content: getInitialAssistantMessage(getAssistantType())
     };
-
     saveChatHistory([initialMessage]);
     await saveMessage(conversationId, initialMessage.role, initialMessage.content);
     return;
   }
 
-  // O Supabase retorna colunas de banco. Aqui convertemos para o formato
-  // que o chat ja sabe renderizar: role, content e attachment.
   const formattedMessages = messages.map((msg) => ({
     role: msg.role,
     content: msg.content,
     attachment: msg.attachment_name
-      ? {
-          name: msg.attachment_name,
-          type: msg.attachment_type
-        }
+      ? { name: msg.attachment_name, type: msg.attachment_type }
       : null
   }));
 
@@ -1177,6 +1202,42 @@ async function loadConversationList() {
       info.appendChild(date);
 
 
+      // Botão de renomear (aparece ao passar o mouse)
+      const renameBtn = document.createElement("button");
+      renameBtn.classList.add("conversation-item-rename");
+      renameBtn.textContent = "✏️";
+      renameBtn.title = "Renomear conversa";
+      renameBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+
+        const currentTitle = conv.title || "Conversa";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = currentTitle;
+        input.classList.add("conversation-item-rename-input");
+
+        // Troca o span de título pelo input de edição
+        info.replaceChild(input, title);
+        input.focus();
+        input.select();
+
+        const confirmRename = async () => {
+          const newTitle = input.value.trim() || currentTitle;
+          try {
+            await updateConversationTitle(conv.id, newTitle);
+          } catch (err) {
+            console.error("Erro ao renomear:", err);
+          }
+          loadConversationList();
+        };
+
+        input.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter") { ev.preventDefault(); confirmRename(); }
+          if (ev.key === "Escape") { loadConversationList(); }
+        });
+        input.addEventListener("blur", confirmRename);
+      });
+
       // Botão de apagar (aparece ao passar o mouse)
       const deleteBtn = document.createElement("button");
       deleteBtn.classList.add("conversation-item-delete");
@@ -1188,6 +1249,7 @@ async function loadConversationList() {
       });
 
       item.appendChild(info);
+      item.appendChild(renameBtn);
       item.appendChild(deleteBtn);
 
       // Clicar no item troca de conversa
@@ -1259,23 +1321,10 @@ async function handleSubmit(event) {
     attachment
   );
 
-  // A mensagem aparece no chat imediatamente pelo localStorage.
-  // Em seguida tentamos salvar no Supabase para manter historico persistente.
-  // Se o Supabase falhar, o chat continua funcionando no navegador.
-  let conversationId = null;
-
-  try {
-    conversationId = await getCurrentConversationId();
-
-    await saveMessage(
-      conversationId,
-      "user",
-      message || `Arquivo enviado: ${file.name}`,
-      attachment
-    );
-  } catch (error) {
-    console.error("Erro ao salvar mensagem do usuario no Supabase:", error);
-  }
+  // Lê o ID da conversa atual (se já existir).
+  // A conversa só é criada no Supabase DEPOIS que a IA responder com sucesso.
+  // Isso evita chats vazios no banco quando a IA retorna erro.
+  const existingConversationId = localStorage.getItem("currentConversationId") || null;
 
   // Atualiza a tela
   renderMessages();
@@ -1305,34 +1354,76 @@ async function handleSubmit(event) {
 
       data = await uploadFile(
         provider,
-        // Envia o agente para o backend analisar o arquivo no papel correto.
         assistantType,
         message || "Analise este arquivo.",
         historyBeforeSubmit,
         file,
         memories,
-        // Envia a conversa para o backend guardar o grafico desta planilha
-        // no cache correto.
-        conversationId
+        existingConversationId
       );
 
       console.log("RESPOSTA DO UPLOAD:", data);
     } else {
-      // Se não tiver arquivo, envia mensagem normal
-      console.log("ENVIANDO TEXTO PARA BACKEND");
+      // Se não tiver arquivo, usa streaming para exibir a resposta progressivamente
+      console.log("ENVIANDO TEXTO PARA BACKEND (stream)");
 
-      data = await sendMessage(
+      // Remove o "digitando..." antes de criar o bubble manual do stream
+      removeTyping();
+
+      const chatContainer = document.getElementById("chatMessages");
+      const { wrapper: streamWrapper, bubble: streamBubble } =
+        createMessageElement("assistant", "", false, null, null);
+      chatContainer.appendChild(streamWrapper);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      let fullReply = "";
+      let finalChart = null;
+
+      const streamResponse = await getStreamResponse(
         provider,
-        // Envia o agente para o backend montar o prompt financeiro.
         assistantType,
         message,
         [...historyBeforeSubmit, { role: "user", content: message }],
         memories,
-        // Permite que /chat recupere graficos gerados no upload anterior.
-        conversationId
+        existingConversationId
       );
 
-      console.log("RESPOSTA DO CHAT:", data);
+      const reader = streamResponse.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      // Lê cada chunk SSE conforme chega do backend
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE separa eventos por \n\n
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop(); // Último fragmento pode estar incompleto
+
+        for (const part of parts) {
+          if (!part.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(part.slice(6));
+            if (event.chunk) {
+              fullReply += event.chunk;
+              streamBubble.textContent = fullReply;
+              chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+            if (event.done) finalChart = event.chart || null;
+            if (event.error) throw new Error(event.error);
+          } catch (e) {
+            // Chunk malformado, ignora
+          }
+        }
+      }
+
+      // Monta o mesmo formato que o restante do handleSubmit espera
+      data = { reply: fullReply || "Sem resposta da IA.", chart: finalChart };
+
+      console.log("RESPOSTA DO STREAM concluída.");
     }
 
     // Pega a resposta da IA.
@@ -1348,16 +1439,18 @@ async function handleSubmit(event) {
 
     hideUploadStatus();
 
-    // Adiciona a resposta da IA no histórico
+    // Adiciona a resposta da IA no histórico local
     addMessage("assistant", reply, null, data.chart || null);
 
-    // Salva tambem a resposta da IA na mesma conversa do Supabase.
-    if (conversationId) {
-      try {
-        await saveMessage(conversationId, "assistant", reply);
-      } catch (error) {
-        console.error("Erro ao salvar resposta da IA no Supabase:", error);
-      }
+    // A IA respondeu com sucesso: agora criamos (ou reutilizamos) a conversa
+    // no Supabase e salvamos a mensagem do usuário + resposta da IA juntas.
+    let conversationId = null;
+    try {
+      conversationId = await getCurrentConversationId();
+      await saveMessage(conversationId, "user", message || (file ? `Arquivo enviado: ${file.name}` : ""), attachment);
+      await saveMessage(conversationId, "assistant", reply);
+    } catch (error) {
+      console.error("Erro ao salvar mensagens no Supabase:", error);
     }
 
     // Depois que a IA respondeu, tentamos transformar a interação em memória.
@@ -1429,6 +1522,9 @@ async function handleSubmit(event) {
 
     // Renderiza a resposta na tela
     renderMessages();
+
+    // Atualiza a lista de conversas na sidebar para refletir a nova/atual conversa
+    loadConversationList();
 
     // Limpa o arquivo selecionado
     clearSelectedFile();
@@ -1529,6 +1625,7 @@ async function initializeChat() {
   renderMessages()
   //carrega a lista de conversas da sidebar
   loadConversationList()
+
 
   // Configura textarea
   setupTextarea();

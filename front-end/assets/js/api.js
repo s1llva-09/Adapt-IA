@@ -90,7 +90,7 @@ async function parseResponse(response) {
 // Se uma falhar, tenta a próxima automaticamente.
 // Útil para ambientes de desenvolvimento e redes locais.
 
-async function fetchWithFallback(path, options) {
+export async function fetchWithFallback(path, options) {
   const candidates = getApiCandidates();
   let lastError = null;
 
@@ -274,3 +274,23 @@ export async function compressHistory(messages) {
   //Retorna o texto do resumo gerado pelo gemini, ou null
   return data.summary || null
 }
+
+// ============================================================
+// FUNÇÃO: CONECTAR AO STREAM DE RESPOSTA DA IA
+// ============================================================
+// Abre uma conexão SSE com /chat-stream.
+// Retorna a Response bruta para que chat.js leia os chunks
+// em tempo real via response.body.getReader().
+
+export async function getStreamResponse(provider, assistantType, message, history, memories = [], conversationId = null) {
+  const response = await fetchWithFallback("/chat-stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider, assistantType, message, history, memories, conversationId })
+  });
+
+  if (!response.ok) throw new Error("Erro ao conectar ao stream do backend.");
+
+  return response;
+}
+

@@ -104,6 +104,22 @@ export async function getMessages(conversationId) {
   return data || [];
 }
 
+// Atualiza o título de uma conversa.
+// Chamada quando o usuário edita o nome na sidebar.
+export async function updateConversationTitle(conversationId, newTitle) {
+  const user = await getLoggedUser();
+
+  const { error } = await supabase
+    .from("conversations")
+    .update({ title: newTitle })
+    .eq("id", conversationId)
+    .eq("user_id", user.id);
+
+  if (error) throw error;
+
+  return true;
+}
+
 // Apaga uma conversa.
 // Se houver cascade no banco, as mensagens dela tambem podem ser apagadas junto.
 export async function deleteConversation(conversationId) {

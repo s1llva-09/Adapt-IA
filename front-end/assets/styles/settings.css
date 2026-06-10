@@ -1,0 +1,408 @@
+/* ============================================================
+   Configurações
+   ============================================================ */
+
+.settings-body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ----------------------------------------------------------
+   Header
+---------------------------------------------------------- */
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 32px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(7, 12, 24, 0.97);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.settings-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-header-brand {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--accent, #6366f1);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.settings-header-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.settings-header-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.settings-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.72);
+  color: var(--text-soft, #94a3b8);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.settings-back-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-back-btn:hover {
+  background: rgba(51, 65, 85, 0.9);
+  border-color: rgba(96, 165, 250, 0.4);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* ----------------------------------------------------------
+   Layout
+---------------------------------------------------------- */
+
+.settings-main {
+  max-width: 680px;
+  margin: 32px auto;
+  padding: 0 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ----------------------------------------------------------
+   Cards
+---------------------------------------------------------- */
+
+.settings-card {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 26px 30px;
+  backdrop-filter: blur(8px);
+}
+
+.settings-card--danger {
+  border-color: rgba(239, 68, 68, 0.18);
+}
+
+.settings-card-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0 0 22px;
+}
+
+.settings-card-title h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+}
+
+.settings-card-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  color: #a5b4fc;
+  flex-shrink: 0;
+}
+
+.settings-card-title-icon--danger {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+}
+
+.settings-card-title-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ----------------------------------------------------------
+   Perfil
+---------------------------------------------------------- */
+
+.profile-info {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.profile-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25);
+}
+
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-email {
+  font-size: 0.97rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  color: #a5b4fc;
+}
+
+.profile-role-badge.is-admin {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+}
+
+.profile-since {
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+/* ----------------------------------------------------------
+   Formulário de senha
+---------------------------------------------------------- */
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.settings-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 540px) {
+  .settings-form-row { grid-template-columns: 1fr; }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.form-group label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.input-wrapper input {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text);
+  padding: 10px 42px 10px 14px;
+  font-size: 0.93rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.input-wrapper input:focus {
+  border-color: rgba(99, 102, 241, 0.6);
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.input-wrapper input::placeholder {
+  color: rgba(148, 163, 184, 0.4);
+}
+
+.toggle-password {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.toggle-password:hover {
+  color: var(--text);
+}
+
+.toggle-password svg {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-msg {
+  font-size: 0.85rem;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.settings-msg.hidden { display: none; }
+
+.settings-msg.is-success {
+  background: rgba(22, 101, 52, 0.18);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: #bbf7d0;
+}
+
+.settings-msg.is-error {
+  background: rgba(127, 29, 29, 0.15);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  color: #fca5a5;
+}
+
+.settings-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 11px 22px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: #fff;
+  font-size: 0.93rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.22);
+}
+
+.settings-submit-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.settings-submit-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.32);
+}
+
+.settings-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ----------------------------------------------------------
+   Sessão / Danger zone
+---------------------------------------------------------- */
+
+.settings-danger-desc {
+  font-size: 0.88rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.settings-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  background: rgba(127, 29, 29, 0.15);
+  color: #fca5a5;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.settings-danger-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-danger-btn:hover {
+  background: rgba(153, 27, 27, 0.3);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-1px);
+}

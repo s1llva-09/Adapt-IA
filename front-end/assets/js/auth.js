@@ -78,6 +78,19 @@ export async function getUser() {
   return data.user;
 }
 
+// Retorna a sessao atual, incluindo o access_token JWT.
+// Usado pelo admin.js e pelo chat.js para autenticar chamadas ao backend.
+export async function getSession() {
+  const { data } = await supabase.auth.getSession();
+  return data.session;
+}
+
+// Atualiza a senha do usuário logado.
+export async function updatePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
 // Protege paginas internas.
 // Se nao houver usuario logado, redireciona para login.html.
 export async function protectPage() {
