@@ -1205,7 +1205,7 @@ async function loadConversationList() {
       // Botão de renomear (aparece ao passar o mouse)
       const renameBtn = document.createElement("button");
       renameBtn.classList.add("conversation-item-rename");
-      renameBtn.textContent = "✏️";
+      renameBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`;
       renameBtn.title = "Renomear conversa";
       renameBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
@@ -1241,7 +1241,7 @@ async function loadConversationList() {
       // Botão de apagar (aparece ao passar o mouse)
       const deleteBtn = document.createElement("button");
       deleteBtn.classList.add("conversation-item-delete");
-      deleteBtn.textContent = "×";
+      deleteBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
       deleteBtn.title = "Apagar conversa";
       deleteBtn.addEventListener("click", (e) => {
         e.stopPropagation(); // Não abre a conversa ao clicar em apagar

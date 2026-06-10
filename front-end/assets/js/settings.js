@@ -57,7 +57,10 @@ document.querySelectorAll(".toggle-password").forEach((btn) => {
   btn.addEventListener("click", () => {
     const input = document.getElementById(btn.dataset.target);
     if (!input) return;
-    input.type = input.type === "password" ? "text" : "password";
+    const isShowing = input.type === "text";
+    input.type = isShowing ? "password" : "text";
+    btn.classList.toggle("is-visible", !isShowing);
+    btn.setAttribute("aria-label", isShowing ? "Mostrar senha" : "Ocultar senha");
   });
 });
 

@@ -1033,10 +1033,15 @@ body.sidebar-collapsed .chat-sidebar {
   border-radius: 6px;
   background: transparent;
   color: var(--text-soft);
-  font-size: 1.1rem;
   opacity: 0;
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
   cursor: pointer;
+}
+
+.conversation-item-delete svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
 }
 
 .conversation-item:hover .conversation-item-delete {
@@ -1064,11 +1069,25 @@ body.sidebar-collapsed .chat-sidebar {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.82rem;
-  padding: 2px 4px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
-  transition: opacity 0.15s ease;
+  border-radius: 5px;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
   flex-shrink: 0;
+}
+
+.conversation-item-rename svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.conversation-item-rename:hover {
+  color: var(--text);
+  background: rgba(148, 163, 184, 0.1);
 }
 
 .conversation-item:hover .conversation-item-rename {
