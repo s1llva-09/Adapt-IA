@@ -1405,18 +1405,19 @@ async function handleSubmit(event) {
 
         for (const part of parts) {
           if (!part.startsWith("data: ")) continue;
+          let event;
           try {
-            const event = JSON.parse(part.slice(6));
-            if (event.chunk) {
-              fullReply += event.chunk;
-              streamBubble.textContent = fullReply;
-              chatContainer.scrollTop = chatContainer.scrollHeight;
-            }
-            if (event.done) finalChart = event.chart || null;
-            if (event.error) throw new Error(event.error);
+            event = JSON.parse(part.slice(6));
           } catch (e) {
-            // Chunk malformado, ignora
+            continue; // JSON malformado, ignora só o parse
           }
+          if (event.chunk) {
+            fullReply += event.chunk;
+            streamBubble.textContent = fullReply;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          }
+          if (event.done) finalChart = event.chart || null;
+          if (event.error) throw new Error(event.error); // propaga para o catch externo
         }
       }
 

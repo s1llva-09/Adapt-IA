@@ -70,6 +70,10 @@ async function loadUsers() {
     loading.classList.add("hidden");
     wrapper.classList.remove("hidden");
 
+    // Atualiza badge de contagem
+    const countEl = document.getElementById("userCount");
+    if (countEl) { countEl.textContent = users.length; countEl.classList.remove("hidden"); }
+
     if (users.length === 0) {
       tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Nenhum usuário encontrado.</td></tr>`;
       return;
@@ -105,10 +109,6 @@ async function loadUsers() {
       `;
       tbody.appendChild(tr);
     });
-
-    // Atualiza badge de contagem
-    const countEl = document.getElementById("userCount");
-    if (countEl) { countEl.textContent = users.length; countEl.classList.remove("hidden"); }
 
     // Salvar alterações de role
     tbody.querySelectorAll(".save-btn").forEach((btn) => {

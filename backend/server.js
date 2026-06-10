@@ -1325,7 +1325,7 @@ app.post("/chat-stream", async (req, res) => {
   } = req.body
 
   if (!provider || !message) {
-    res.status(400).json({
+    return res.status(400).json({
       error: "provider e message são obrigatórios"
     })
   }
