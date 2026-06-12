@@ -344,7 +344,7 @@ function removeChartJsonBlocks(text) {
 
 // Define a letra do avatar.
 function getAvatarLetter(role) {
-  return role === "user" ? "U" : "IA";
+  return role === "user" ? "U" : "";
 }
 
 // Copia texto da resposta da IA.
@@ -684,7 +684,14 @@ function createMessageElement(
     "avatar",
     role === "user" ? "avatar-user" : "avatar-assistant"
   );
-  avatar.textContent = getAvatarLetter(role);
+  if (role === "assistant") {
+    const img = document.createElement("img");
+    img.src = "assets/robot-avatar.svg";
+    img.alt = "IA";
+    avatar.appendChild(img);
+  } else {
+    avatar.textContent = getAvatarLetter(role);
+  }
 
   const messageBox = document.createElement("div");
   messageBox.classList.add("message-box");

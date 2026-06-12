@@ -62,6 +62,12 @@ async function sendToGemini(messages) {
         throw new Error(error.message || "Erro ao consultar Gemini.");
       }
 
+      const is429 = error.message?.includes("429") || error.message?.toLowerCase().includes("quota");
+      if (is429) {
+        console.log("Rate limit detectado, aguardando 2s antes do proximo modelo...");
+        await delay(2000);
+      }
+
       console.log("Tentando proximo modelo...");
     }
   }
@@ -105,6 +111,12 @@ async function sendToGeminiStream(messages, onChunk) {
 
       if (isLast) {
         throw new Error(error.message || "Erro ao gerar resposta com Gemini.");
+      }
+
+      const is429 = error.message?.includes("429") || error.message?.toLowerCase().includes("quota");
+      if (is429) {
+        console.log("Rate limit detectado no stream, aguardando 2s...");
+        await delay(2000);
       }
 
       console.log("Tentando proximo modelo...");

@@ -305,9 +305,18 @@ body.sidebar-collapsed .chat-sidebar {
 }
 
 .avatar-assistant {
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: var(--assistant);
-  color: #cbd5f5;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.15), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.avatar-assistant img {
+  width: 36px;
+  height: 36px;
+  display: block;
 }
 
 .message-box {
