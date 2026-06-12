@@ -603,3 +603,84 @@
   background: rgba(51, 65, 85, 0.9);
   color: #fff;
 }
+
+/* ----------------------------------------------------------
+   Modal de confirmacao de exclusao
+---------------------------------------------------------- */
+
+.confirm-modal-box {
+  max-width: 380px;
+  gap: 16px;
+}
+
+.confirm-modal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.confirm-modal-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.confirm-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.confirm-modal-content h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.confirm-modal-content p {
+  font-size: 0.87rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.confirm-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+}
+
+.confirm-danger-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.confirm-danger-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.35);
+}
+
+.confirm-danger-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}

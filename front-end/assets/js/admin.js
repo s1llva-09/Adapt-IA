@@ -15,6 +15,32 @@ let modalUserId = null;
 let modalUserEmail = "";
 
 // ----------------------------------------------------------
+// MODAL DE CONFIRMAÇÃO GENÉRICO
+// ----------------------------------------------------------
+// Retorna uma Promise<boolean>: true se o usuário confirmou, false se cancelou.
+function showConfirmModal(title = "Confirmar", message = "Tem certeza?") {
+  return new Promise((resolve) => {
+    const modal   = document.getElementById("confirmModal");
+    const titleEl = document.getElementById("confirmModalTitle");
+    const msgEl   = document.getElementById("confirmModalMsg");
+    const okBtn   = document.getElementById("confirmModalOkBtn");
+    const cancelBtn = document.getElementById("confirmModalCancelBtn");
+
+    titleEl.textContent = title;
+    msgEl.textContent   = message;
+    modal.classList.remove("hidden");
+
+    const cleanup = () => modal.classList.add("hidden");
+
+    const onOk = () => { cleanup(); okBtn.removeEventListener("click", onOk); cancelBtn.removeEventListener("click", onCancel); resolve(true); };
+    const onCancel = () => { cleanup(); okBtn.removeEventListener("click", onOk); cancelBtn.removeEventListener("click", onCancel); resolve(false); };
+
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+  });
+}
+
+// ----------------------------------------------------------
 // AUTENTICAÇÃO
 // ----------------------------------------------------------
 
@@ -124,7 +150,11 @@ async function loadUsers() {
     // Apagar usuário
     tbody.querySelectorAll(".delete-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        if (!confirm(`Apagar este usuário permanentemente?`)) return;
+        const confirmed = await showConfirmModal(
+          "Apagar usuário",
+          "Tem certeza que deseja apagar este usuário permanentemente? Esta ação não pode ser desfeita."
+        );
+        if (!confirmed) return;
         btn.disabled = true;
         await deleteUser(btn.dataset.id);
         loadUsers();
