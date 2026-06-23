@@ -13,23 +13,11 @@
 // GoogleGenAI: Biblioteca oficial do Google para acessar
 // os modelos Gemini (que têm capacidade de visão)
 const { GoogleGenAI } = require("@google/genai");
-
-// fs (File System): Módulo nativo do Node.js para ler
-// arquivos de imagem do sistema
 const fs = require("fs");
-
-// mime-types: Biblioteca para detectar o tipo MIME
-// de arquivos baseado na extensão (jpg, png, webp, etc)
 const mime = require("mime-types");
 
-// ----------------------------------------------------------
-// CRIAÇÃO DO CLIENTE GEMINI
-// ----------------------------------------------------------
-
-// Inicializa o cliente com a API Key do arquivo .env
-const client = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY
-});
+const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const MODEL = (process.env.GEMINI_IMAGE_MODELS || "gemini-2.5-flash").split(",")[0].trim();
 
 // ----------------------------------------------------------
 // FUNÇÃO PRINCIPAL: ANALISAR IMAGEM COM GEMINI
@@ -60,7 +48,7 @@ async function analyzeImageWithGemini(file, message) {
   // --------------------------------------------------------
   const response = await client.models.generateContent({
     // Modelo: Gemini 2.5 Flash Lite (suporta visão)
-    model: "gemini-2.5-flash-lite",
+    model: MODEL,
 
     // Conteúdo: texto de instrução + dados da imagem
     contents: [

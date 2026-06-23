@@ -12,20 +12,10 @@
 // GoogleGenAI: Biblioteca oficial do Google para acessar
 // os modelos Gemini (mesma API usada pelo Google AI Studio)
 const { GoogleGenAI } = require("@google/genai");
-
-// fs (File System): Módulo nativo do Node.js para ler
-// arquivos do sistema de arquivos (necessário para ler o PDF)
 const fs = require("fs");
 
-// ----------------------------------------------------------
-// CRIAÇÃO DO CLIENTE GEMINI
-// ----------------------------------------------------------
-
-// Cria uma instância do cliente Gemini usando a API Key
-// que está armazenada na variável de ambiente GEMINI_API_KEY
-const client = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY
-});
+const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const MODEL = (process.env.GEMINI_IMAGE_MODELS || "gemini-2.5-flash").split(",")[0].trim();
 
 // ----------------------------------------------------------
 // FUNÇÃO PRINCIPAL: ANALISAR PDF COM GEMINI
@@ -51,7 +41,7 @@ async function analyzePdfWithGemini(file, message) {
   // Envia o PDF codificado + instrução de análise
   const response = await client.models.generateContent({
     // Modelo utilizado: Gemini 2.5 Flash Lite (rápido e barato)
-    model: "gemini-2.5-flash-lite",
+    model: MODEL,
 
     // Conteúdo da mensagem: instruções + arquivo em anexo
     contents: [

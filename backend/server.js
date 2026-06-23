@@ -76,15 +76,11 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
-// Serviço para extrair conteúdo de arquivos
-// (verifica se é imagem, PDF, texto, etc)
-const { extractFileContent, isImageFile } = require("./services/fileService");
-
 // Serviço que usa Gemini para fazer OCR em imagens
 const { analyzeImageWithGemini } = require("./services/visionService");
 
 // Serviço que usa Gemini para analisar documentos PDF completos
-const { analyzePdfWithGemini } = require("./services/documentService.JS");
+const { analyzePdfWithGemini } = require("./services/documentService");
 
 // ----------------------------------------------------------
 // CRIAÇÃO DA APLICAÇÃO EXPRESS
@@ -1121,20 +1117,22 @@ ${fileContent}
     // --------------------------------------------------------
     console.log("RESPOSTA FINAL QUE VAI PRO FRONT:", reply);
 
+    // Apaga arquivo temporário após processar
+    fs.unlink(req.file.path, () => {});
+
     // --------------------------------------------------------
     // RETORNO PARA O FRONT-END
     // --------------------------------------------------------
-    // Retorna a resposta da IA e o nome do arquivo processado
     return res.status(200).json({
-      reply, // resposta da IA
+      reply,
       chart,
-      fileName: req.file.originalname // nome original do arquivo
+      fileName: req.file.originalname
     });
 
   } catch (error) {
-    // --------------------------------------------------------
-    // TRATAMENTO DE ERROS
-    // --------------------------------------------------------
+    // Tenta apagar o arquivo mesmo em caso de erro
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+
     console.error("Erro no /upload:", error);
     return res.status(500).json({
       reply: "Erro ao processar arquivo.",
