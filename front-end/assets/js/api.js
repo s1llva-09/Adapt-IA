@@ -114,7 +114,8 @@ export async function fetchWithFallback(path, options) {
       return response; // Retorna a resposta com sucesso
 
     } catch (error) {
-      // Falhou nesta URL, tenta a próxima
+      // AbortError não deve ser retentado — re-lança imediatamente
+      if (error?.name === "AbortError") throw error;
       lastError = error;
       console.warn(`[api] Falha de rede em ${url}:`, error);
     }
@@ -169,23 +170,19 @@ export async function sendMessage(provider, assistantType, message, history, mem
 // Envia um arquivo (imagem, PDF, texto) junto com uma mensagem.
 // Usa FormData para enviar arquivos via POST.
 
-export async function uploadFile(provider, assistantType, message, history, file, memories = [], conversationId = null) {
-  // Cria FormData para envio multipart/form-data
+export async function uploadFile(provider, assistantType, message, history, files, memories = [], conversationId = null) {
   const formData = new FormData();
-
-  // Adiciona campos ao FormData
-  formData.append("provider", provider);  // IA selecionada
-  // Envia o agente junto com o arquivo para o backend manter o mesmo contexto.
-  formData.append("assistantType", assistantType); // ex: financial_management
-  formData.append("message", message);    // Mensagem opcional
-  formData.append("history", JSON.stringify(history)); // Histórico (serializado)
-  formData.append("memories", JSON.stringify(memories)); // Memorias persistentes
-  // Quando o arquivo e uma planilha, o backend guarda os dados do grafico
-  // usando esse id. Assim pedidos futuros usam a mesma planilha.
+  formData.append("provider", provider);
+  formData.append("assistantType", assistantType);
+  formData.append("message", message);
+  formData.append("history", JSON.stringify(history));
+  formData.append("memories", JSON.stringify(memories));
   if (conversationId) {
-    formData.append("conversationId", conversationId); // Vincula graficos ao chat atual
+    formData.append("conversationId", conversationId);
   }
-  formData.append("file", file);          // O arquivo em si
+  // Suporta arquivo único ou array de até 4 arquivos
+  const fileArray = Array.isArray(files) ? files : [files];
+  fileArray.forEach(f => formData.append("files", f));
 
   // Faz requisição POST para /upload
   const response = await fetchWithFallback("/upload", {
@@ -282,12 +279,15 @@ export async function compressHistory(messages) {
 // Retorna a Response bruta para que chat.js leia os chunks
 // em tempo real via response.body.getReader().
 
-export async function getStreamResponse(provider, assistantType, message, history, memories = [], conversationId = null) {
-  const response = await fetchWithFallback("/chat-stream", {
+export async function getStreamResponse(provider, assistantType, message, history, memories = [], conversationId = null, signal = null) {
+  const options = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ provider, assistantType, message, history, memories, conversationId })
-  });
+  };
+  if (signal) options.signal = signal;
+
+  const response = await fetchWithFallback("/chat-stream", options);
 
   if (!response.ok) throw new Error("Erro ao conectar ao stream do backend.");
 

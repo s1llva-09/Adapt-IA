@@ -241,20 +241,57 @@ body.sidebar-collapsed .chat-sidebar {
 
 .chat-topbar {
   flex-shrink: 0;
-  padding: 22px 28px 22px 84px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 28px 18px 84px;
   border-bottom: 1px solid var(--border);
   background: rgba(8, 17, 32, 0.62);
   backdrop-filter: blur(12px);
 }
 
+.chat-topbar-left {
+  min-width: 0;
+}
+
 .chat-topbar h1 {
-  margin-bottom: 8px;
-  font-size: 1.9rem;
+  margin-bottom: 4px;
+  font-size: 1.6rem;
 }
 
 .chat-topbar p {
   color: var(--text-soft);
-  font-size: 1.05rem;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.summary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 14px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #a5b4fc;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s;
+}
+
+.summary-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.summary-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+  transform: translateY(-1px);
 }
 
 /* ============================================================
@@ -392,12 +429,79 @@ body.sidebar-collapsed .chat-sidebar {
   color: var(--text);
 }
 
+.retry-btn {
+  padding: 6px 12px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #a5b4fc;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s;
+}
+
+.retry-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.55);
+}
+
+.stop-stream-btn {
+  padding: 0 16px;
+  height: 54px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 16px;
+  background: rgba(127, 29, 29, 0.18);
+  color: #fca5a5;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s, border-color 0.18s;
+  flex-shrink: 0;
+}
+
+.stop-stream-btn:hover {
+  background: rgba(153, 27, 27, 0.3);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.stop-stream-btn.hidden {
+  display: none;
+}
+
 /* ============================================================
    Codigo dentro das respostas
    ============================================================ */
 
-.code-block {
+.code-block-wrapper {
+  position: relative;
   margin-top: 10px;
+}
+
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 9px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  z-index: 1;
+}
+
+.code-copy-btn:hover {
+  background: rgba(30, 41, 59, 0.98);
+  color: #e2e8f0;
+}
+
+.code-block {
+  margin-top: 0;
   padding: 14px;
   overflow-x: auto;
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -755,6 +859,11 @@ body.sidebar-collapsed .chat-sidebar {
     font-size: 1.5rem;
   }
 
+  .summary-btn span, .summary-btn {
+    font-size: 0.78rem;
+    padding: 7px 10px;
+  }
+
   .message-box {
     max-width: 85%;
   }
@@ -790,32 +899,59 @@ body.sidebar-collapsed .chat-sidebar {
   display: none;
 }
 
-/* Preview do arquivo anexado */
+/* Preview dos arquivos anexados — chips lado a lado */
 .file-preview {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
 }
 
-/* Imagem pequena quando for imagem */
-.file-preview img {
-  width: 46px;
-  height: 46px;
-  object-fit: cover;
+.file-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 5px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.9);
+  max-width: 200px;
 }
 
-/* Nome do arquivo */
-.file-preview span {
-  color: #e5e7eb;
-  font-size: 0.9rem;
-  font-weight: 600;
-  max-width: 360px;
-  white-space: nowrap;
+.file-chip-thumb {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.file-chip-icon {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: #94a3b8;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.file-chip-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e5e7eb;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 /* Botão remover anexo */
@@ -964,6 +1100,27 @@ body.sidebar-collapsed .chat-sidebar {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.conversation-search {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.7);
+  color: var(--text);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.18s;
+  box-sizing: border-box;
+}
+
+.conversation-search::placeholder {
+  color: var(--text-soft);
+}
+
+.conversation-search:focus {
+  border-color: rgba(99, 102, 241, 0.4);
 }
 
 /* Lista scrollável quando tiver muitas conversas */

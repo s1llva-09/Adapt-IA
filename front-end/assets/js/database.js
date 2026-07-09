@@ -157,8 +157,6 @@ export async function saveMemory(assistantType, content, conversationId = null) 
 }
 
 // Busca as memorias persistentes do usuario para o agente atual.
-// O chat envia essas memorias ao backend para a IA responder com contexto
-// de conversas anteriores, mesmo quando a conversa atual foi limpa.
 export async function getMemories(assistantType) {
   const user = await getLoggedUser();
 
@@ -173,4 +171,34 @@ export async function getMemories(assistantType) {
   if (error) throw error;
 
   return data || [];
+}
+
+// Busca TODAS as memórias do usuário (todos os agentes), para a página de configurações.
+export async function getAllMemories() {
+  const user = await getLoggedUser();
+
+  const { data, error } = await supabase
+    .from("memories")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data || [];
+}
+
+// Remove uma memória específica pelo ID.
+export async function deleteMemory(memoryId) {
+  const user = await getLoggedUser();
+
+  const { error } = await supabase
+    .from("memories")
+    .delete()
+    .eq("id", memoryId)
+    .eq("user_id", user.id);
+
+  if (error) throw error;
+
+  return true;
 }

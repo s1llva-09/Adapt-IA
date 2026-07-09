@@ -915,21 +915,11 @@ function buildChartFromConversationValues(history = [], userMessage = "") {
 // Endpoint para receber arquivos do front-end
 // Suporta: imagens, PDFs e arquivos de texto
 
-app.post("/upload", upload.single("file"), async (req, res) => {
+app.post("/upload", upload.array("files", 4), async (req, res) => {
   try {
-    // --------------------------------------------------------
-    // DEBUG INICIAL - Registra dados recebidos
-    // --------------------------------------------------------
     console.log("UPLOAD CHAMADO");
-    console.log("Arquivo recebido:", req.file);
-    console.log("Body recebido:", req.body);
+    console.log("Arquivos recebidos:", (req.files || []).map(f => f.originalname));
 
-    // --------------------------------------------------------
-    // EXTRAÇÃO DE DADOS DO REQUEST
-    // --------------------------------------------------------
-    // provider: Qual IA usar (gemini ou openai)
-    // message: Texto opcional digitado pelo usuário
-    // history: Histórico da conversa (vem como string JSON)
     const {
       provider,
       assistantType,
@@ -939,14 +929,10 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       memories = "[]"
     } = req.body;
 
-    // --------------------------------------------------------
-    // VALIDAÇÃO
-    // --------------------------------------------------------
-    // Verifica se um arquivo foi realmente enviado
-    if (!req.file) {
-      return res.status(400).json({
-        reply: "Nenhum arquivo foi enviado."
-      });
+    const files = req.files || [];
+
+    if (files.length === 0) {
+      return res.status(400).json({ reply: "Nenhum arquivo foi enviado." });
     }
 
     // --------------------------------------------------------
@@ -966,178 +952,108 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       console.error("Erro ao converter memorias:", error);
     }
 
-    // Cria o prompt correto de acordo com o agente recebido.
-    // Para imagens e PDFs, juntamos esse prompt ao pedido do usuário,
-    // porque esses serviços recebem uma instrução em texto simples.
     const systemPromptText = getSystemPrompt(assistantType, parsedMemories);
-    const messageWithContext = `
-${systemPromptText}
+    const messageWithContext = `${systemPromptText}\n\nPedido do usuário:\n${message}`.trim();
 
-Pedido do usuário:
-${message}
-    `.trim();
-
-    // --------------------------------------------------------
-    // VARIÁVEL PARA RESPOSTA FINAL
-    // --------------------------------------------------------
     let reply;
     let chart = null;
 
-    // --------------------------------------------------------
-    // PROCESSAMENTO BASEADO NO TIPO DE ARQUIVO
-    // --------------------------------------------------------
+    // -------------------------------------------------------
+    // ARQUIVO ÚNICO — comportamento original preservado
+    // -------------------------------------------------------
+    if (files.length === 1) {
+      const file = files[0];
 
-    // CASO 1: ARQUIVO É UM PDF
-    if (req.file.mimetype === "application/pdf") {
-      console.log("PDF detectado → enviando para Gemini completo");
-      // Usa serviço especializado que faz OCR completo no PDF
-      reply = await analyzePdfWithGemini(req.file, messageWithContext);
-      console.log("PDF analisado OK");
-    }
-    // CASO 2: ARQUIVO É UMA IMAGEM
-    else if (req.file.mimetype.startsWith("image/")) {
-      console.log("Imagem detectada → OCR Gemini");
-      // Usa serviço de visão para extrair texto e descrever imagem
-      reply = await analyzeImageWithGemini(req.file, messageWithContext);
-      console.log("Imagem analisada OK");
-    }
-    
-    //CASO 3: ARQUIVO É EXCEL/CSV
-    else if (isExcelFile(req.file)) {
-      console.log("Excel/CSV detectado -> lendo planilha");
+      if (file.mimetype === "application/pdf") {
+        reply = await analyzePdfWithGemini(file, messageWithContext);
+      } else if (file.mimetype.startsWith("image/")) {
+        reply = await analyzeImageWithGemini(file, messageWithContext);
+      } else if (isExcelFile(file)) {
+        const workbook = XLSX.readFile(file.path);
+        chart = generateChartFromWorkbook(workbook, message);
+        rememberWorkbookChart(conversationId, chart);
 
-      //Lê o arquivo excel salvo temporariamente pelo Multer
-      //req.file.path é o caminho físico do arquivo dentro da pasta backend/uploads
-      const workbook = XLSX.readFile(req.file.path);
+        let excelContent = "";
+        workbook.SheetNames.forEach((sheetName) => {
+          const sheet = workbook.Sheets[sheetName];
+          excelContent += `ABA: ${sheetName}\n${XLSX.utils.sheet_to_csv(sheet)}\n---\n`;
+        });
 
-      // Gera dados de gráfico automaticamente
-      // A mensagem do usuario entra junto para decidir se o primeiro
-      // grafico deve ser pizza ou barras.
-      chart = generateChartFromWorkbook(workbook, message);
+        reply = await sendToGemini([
+          { role: "system", content: systemPromptText },
+          ...parsedHistory,
+          { role: "user", content: `${message}\n\nArquivo: ${file.originalname}\n\n${excelContent.slice(0, 12000)}\n\nObs: não escreva JSON ou código de gráfico na resposta.`.trim() }
+        ]);
+      } else {
+        const fileContent = fs.readFileSync(file.path, "utf-8");
+        reply = await sendToGemini([
+          { role: "system", content: systemPromptText },
+          ...parsedHistory,
+          { role: "user", content: `${message}\n\nArquivo (${file.originalname}):\n${fileContent}`.trim() }
+        ]);
+      }
 
-      // Guarda o grafico no cache da conversa.
-      // Depois disso, o usuario pode pedir outro grafico no /chat
-      // sem reenviar o mesmo Excel.
-      rememberWorkbookChart(conversationId, chart);
-      console.log("Grafico gerado a partir do Excel:", chart);
+      fs.unlink(file.path, () => {});
 
-      //Essa variavel vai juntar o conteudo de todas as abas da planilha 
-      let excelContent = "";
+    // -------------------------------------------------------
+    // MÚLTIPLOS ARQUIVOS — extrai todos, sintetiza em 1 chamada
+    // -------------------------------------------------------
+    } else {
+      const extractions = [];
 
-      //Um excel pode ter varias abas
-      //sheetNames é a lista com o nome de todas elas
-      workbook.SheetNames.forEach((sheetName) => {
-        //Pega a aba atual pelo seu nome
-        const sheet = workbook.Sheets[sheetName];
+      for (const file of files) {
+        try {
+          if (file.mimetype === "application/pdf") {
+            const text = await analyzePdfWithGemini(file, "Extraia o conteúdo completo deste documento.");
+            extractions.push({ name: file.originalname, content: text });
+          } else if (file.mimetype.startsWith("image/")) {
+            const text = await analyzeImageWithGemini(file, "Descreva e extraia todo o texto visível nesta imagem.");
+            extractions.push({ name: file.originalname, content: text });
+          } else if (isExcelFile(file)) {
+            const workbook = XLSX.readFile(file.path);
+            if (!chart) {
+              chart = generateChartFromWorkbook(workbook, message);
+              rememberWorkbookChart(conversationId, chart);
+            }
+            let excelContent = "";
+            workbook.SheetNames.forEach((sheetName) => {
+              const sheet = workbook.Sheets[sheetName];
+              excelContent += `Aba: ${sheetName}\n${XLSX.utils.sheet_to_csv(sheet)}\n---\n`;
+            });
+            extractions.push({ name: file.originalname, content: excelContent.slice(0, 10000) });
+          } else {
+            const text = fs.readFileSync(file.path, "utf-8");
+            extractions.push({ name: file.originalname, content: text });
+          }
+        } catch (fileErr) {
+          console.error(`Erro ao processar ${file.originalname}:`, fileErr.message);
+          extractions.push({ name: file.originalname, content: "(erro ao processar este arquivo)" });
+        } finally {
+          fs.unlink(file.path, () => {});
+        }
+      }
 
-        //converte a aba para CSV
-        //CSV é texto simples, bom para enviar para a IA
-        const sheetText = XLSX.utils.sheet_to_csv(sheet);
+      const combinedContent = extractions
+        .map(e => `=== ${e.name} ===\n${e.content}`)
+        .join("\n\n");
 
-        //junta o nome da aba + conteudo da aba
-        excelContent += `
-ABA: ${sheetName}
-
-${sheetText}
-
--------------------------
-        `
-      });
-
-      // Evita mandar uma planilha gigante demais para a IA.
-      // Se quiser aumentar depois, pode trocar 12000 por 20000.
-      const limitedExcelContent = excelContent.slice(0, 12000);
-
-      //Monta as mensagens para a IA
-      const messages = [
-        {
-          role: "system",
-          content: systemPromptText
-        },
+      reply = await sendToGemini([
+        { role: "system", content: systemPromptText },
         ...parsedHistory,
-        {
-          role: "user",
-          content: `
-
-Mensagem do usuário:
-${message}
-
-Arquivo Excel/CSV enviado:
-${req.file.originalname}
-
-Conteúdo extraído da planilha:
-${limitedExcelContent}
-
-Observação:
-Se houver dados numéricos e categorias, analise os maiores valores e explique o ranking.
-Não escreva JSON, configuração de Chart.js ou bloco de código de gráfico na resposta.
-Se o usuário pedir gráfico, apenas explique o que ele mostra; o sistema desenha o gráfico visual separadamente.
-          `.trim()
-        }
-      ];
-
-      //envia o conteudo extraido para o gemini analisar
-      reply = await sendToGemini(messages);
-
-      console.log("Arquivo Excel/CSV analisado");
-    }
-    // CASO 4: OUTROS ARQUIVOS (txt, código, etc)
-    else {
-      console.log("Arquivo texto detectado");
-      // Lê o conteúdo do arquivo como texto
-      const fileContent = fs.readFileSync(req.file.path, "utf-8");
-
-      // Monta mensagens para enviar à IA
-      const messages = [
-        {
-          role: "system",
-          // Para arquivos de texto/código, o contexto do agente entra
-          // como mensagem system, igual acontece na rota /chat.
-          content: systemPromptText
-        },
-        ...parsedHistory, // mantém histórico anterior para contexto
-        {
-          role: "user",
-          content: `
-Mensagem:
-${message}
-
-Arquivo:
-${fileContent}
-          `.trim()
-        }
-      ];
-
-      // Envia para o Gemini para análise
-      reply = await sendToGemini(messages);
+        { role: "user", content: `${message}\n\nArquivos enviados (${files.length}):\n\n${combinedContent}`.trim() }
+      ]);
     }
 
-    // --------------------------------------------------------
-    // DEBUG FINAL - Confirma resposta antes de enviar
-    // --------------------------------------------------------
-    console.log("RESPOSTA FINAL QUE VAI PRO FRONT:", reply);
-
-    // Apaga arquivo temporário após processar
-    fs.unlink(req.file.path, () => {});
-
-    // --------------------------------------------------------
-    // RETORNO PARA O FRONT-END
-    // --------------------------------------------------------
     return res.status(200).json({
       reply,
       chart,
-      fileName: req.file.originalname
+      fileNames: files.map(f => f.originalname)
     });
 
   } catch (error) {
-    // Tenta apagar o arquivo mesmo em caso de erro
-    if (req.file?.path) fs.unlink(req.file.path, () => {});
-
+    (req.files || []).forEach(f => fs.unlink(f.path, () => {}));
     console.error("Erro no /upload:", error);
-    return res.status(500).json({
-      reply: "Erro ao processar arquivo.",
-      error: error.message
-    });
+    return res.status(500).json({ reply: "Erro ao processar arquivo.", error: error.message });
   }
 });
 
@@ -1184,6 +1100,35 @@ app.post("/memory/compress", async (req, res) => {
     })
   }
 })
+
+// Gera um título curto para uma conversa com base na primeira troca de mensagens.
+app.post("/generate-title", async (req, res) => {
+  try {
+    const { message = "", reply = "" } = req.body;
+    const prompt = `Crie um título curto (máximo 6 palavras) para uma conversa que começou assim:\n\nUsuário: ${message}\nIA: ${reply.slice(0, 300)}\n\nResponda APENAS com o título, sem aspas, sem pontuação final e sem explicação.`;
+    const title = await sendToGemini([{ role: "user", content: prompt }]);
+    return res.json({ title: (title || "Nova conversa").slice(0, 60) });
+  } catch (error) {
+    return res.json({ title: "Nova conversa" });
+  }
+});
+
+// Gera um resumo executivo da conversa em bullet points.
+app.post("/summarize", async (req, res) => {
+  try {
+    const { history = [] } = req.body;
+    if (history.length < 2) return res.json({ summary: "Não há mensagens suficientes para resumir." });
+    const transcript = history
+      .filter(m => m.content)
+      .map(m => `${m.role === "user" ? "Usuário" : "IA"}: ${m.content}`)
+      .join("\n\n");
+    const prompt = `Crie um Resumo Executivo desta conversa em até 5 bullet points.\nSeja direto, foque em decisões, dados e informações relevantes para o negócio.\nFormato: cada ponto começa com "• ".\n\nConversa:\n${transcript}`;
+    const summary = await sendToGemini([{ role: "user", content: prompt }]);
+    return res.json({ summary: summary || "Não foi possível gerar o resumo." });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || "Erro ao gerar resumo." });
+  }
+});
 
 // ----------------------------------------------------------
 // ROTA PRINCIPAL DE CHAT

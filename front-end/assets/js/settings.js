@@ -1,5 +1,6 @@
 import { protectPage, getUser, getSession, updatePassword, logout } from "./auth.js";
 import { fetchWithFallback } from "./api.js";
+import { getAllMemories, deleteMemory } from "./database.js";
 
 protectPage();
 
@@ -115,7 +116,71 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
 });
 
 // ----------------------------------------------------------
+// MEMÓRIAS
+// ----------------------------------------------------------
+
+const AGENT_LABELS = {
+  financial_management: "Gestão Financeira",
+  general: "Geral"
+};
+
+async function loadMemories() {
+  const list = document.getElementById("memoriesList");
+  if (!list) return;
+
+  try {
+    const memories = await getAllMemories();
+
+    list.innerHTML = "";
+
+    if (memories.length === 0) {
+      list.innerHTML = '<p class="memories-empty">Nenhuma memória salva ainda. Converse com a IA para ela aprender sobre você.</p>';
+      return;
+    }
+
+    memories.forEach(memory => {
+      const item = document.createElement("div");
+      item.className = "memory-item";
+
+      const badge = document.createElement("span");
+      badge.className = "memory-badge";
+      badge.textContent = AGENT_LABELS[memory.assistant_type] || memory.assistant_type;
+
+      const text = document.createElement("p");
+      text.className = "memory-text";
+      text.textContent = memory.content;
+
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "memory-delete-btn";
+      delBtn.title = "Deletar memória";
+      delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
+      delBtn.addEventListener("click", async () => {
+        delBtn.disabled = true;
+        try {
+          await deleteMemory(memory.id);
+          item.remove();
+          if (list.children.length === 0) {
+            list.innerHTML = '<p class="memories-empty">Nenhuma memória salva ainda.</p>';
+          }
+        } catch {
+          delBtn.disabled = false;
+        }
+      });
+
+      item.appendChild(badge);
+      item.appendChild(text);
+      item.appendChild(delBtn);
+      list.appendChild(item);
+    });
+  } catch {
+    list.innerHTML = '<p class="memories-empty">Erro ao carregar memórias.</p>';
+  }
+}
+
+// ----------------------------------------------------------
 // INIT
 // ----------------------------------------------------------
 
 loadProfile();
+loadMemories();

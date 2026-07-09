@@ -1,6 +1,6 @@
 console.log("CHAT.JS NOVO CARREGADO");
 // Importa as funções que conversam com o backend.
-import { extractMemory, sendMessage, uploadFile, compressHistory, getStreamResponse } from "./api.js";
+import { extractMemory, sendMessage, uploadFile, compressHistory, getStreamResponse, fetchWithFallback } from "./api.js";
 import { protectPage, logout } from "./auth.js";
 import {
   createConversation,
@@ -22,14 +22,13 @@ protectPage()
 // Ele diz que o usuário escolheu o agente de Gestão Financeira.
 const FINANCIAL_ASSISTANT_TYPE = "financial_management"
 
-// Quantidade máxima de mensagens no histórico antes de comprimir.
-// Quando ultrapassar esse número, as mensagens mais antigas viram um resumo.
-// Isso reduz os tokens enviados à IA em cada requisição.
 const MAX_HISTORY_LENGTH = 20
-
-// Quantas mensagens recentes manter intactas após a compressão.
-// Essas ficam no histórico sem serem resumidas, para manter contexto imediato.
 const RECENT_MESSAGES_TO_KEEP = 6
+
+// Guarda a última mensagem enviada para o botão "Tentar novamente"
+let lastSubmission = null;
+// Controla o AbortController do streaming atual
+let currentAbortController = null;
 
 function getBackendOrigin() {
   const hostname = window.location.hostname || "127.0.0.1";
@@ -297,11 +296,14 @@ function escapeHtml(text) {
 function formatMarkdown(text) {
   let formatted = escapeHtml(text);
 
-  // Bloco de código com ```
-  formatted = formatted.replace(
-    /```([\s\S]*?)```/g,
-    '<pre class="code-block"><code>$1</code></pre>'
-  );
+  // Extrai blocos de código antes de converter \n em <br>,
+  // para preservar as quebras de linha originais dentro do código.
+  const codeBlocks = [];
+  formatted = formatted.replace(/```([\s\S]*?)```/g, (_, code) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push(code.replace(/^\n/, ""));
+    return `\x00CB${idx}\x00`;
+  });
 
   // Código inline com `
   formatted = formatted.replace(
@@ -315,8 +317,13 @@ function formatMarkdown(text) {
   // Itálico com *texto*
   formatted = formatted.replace(/\*(.*?)\*/g, "<em>$1</em>");
 
-  // Quebras de linha
+  // Quebras de linha (fora dos blocos de código)
   formatted = formatted.replace(/\n/g, "<br>");
+
+  // Restaura blocos de código com newlines reais (para o botão de copiar funcionar)
+  formatted = formatted.replace(/\x00CB(\d+)\x00/g, (_, i) => {
+    return `<pre class="code-block"><code>${codeBlocks[parseInt(i, 10)]}</code></pre>`;
+  });
 
   return formatted;
 }
@@ -704,6 +711,26 @@ function createMessageElement(
     bubble.textContent = content;
   } else {
     bubble.innerHTML = formatMarkdown(content);
+
+    // Adiciona botão de copiar em cada bloco de código
+    if (role === "assistant") {
+      bubble.querySelectorAll("pre.code-block").forEach(pre => {
+        const codeWrapper = document.createElement("div");
+        codeWrapper.className = "code-block-wrapper";
+        bubble.insertBefore(codeWrapper, pre);
+        codeWrapper.appendChild(pre);
+
+        const copyCodeBtn = document.createElement("button");
+        copyCodeBtn.type = "button";
+        copyCodeBtn.className = "code-copy-btn";
+        copyCodeBtn.textContent = "Copiar";
+        copyCodeBtn.addEventListener("click", () => {
+          const codeEl = pre.querySelector("code") || pre;
+          copyToClipboard(codeEl.textContent.trim(), copyCodeBtn);
+        });
+        codeWrapper.appendChild(copyCodeBtn);
+      });
+    }
   }
 
   // Se tiver anexo, coloca o card do anexo antes da bolha.
@@ -774,6 +801,16 @@ function renderMessages() {
   container.scrollTop = container.scrollHeight;
 }
 
+function showStopButton() {
+  const btn = document.getElementById("stopStreamButton");
+  if (btn) btn.classList.remove("hidden");
+}
+
+function hideStopButton() {
+  const btn = document.getElementById("stopStreamButton");
+  if (btn) btn.classList.add("hidden");
+}
+
 // Mostra "A IA está digitando..."
 function showTyping() {
   const container = document.getElementById("chatMessages");
@@ -832,6 +869,42 @@ function clearChat() {
 // Volta para a tela inicial.
 function goBack() {
   window.location.href = "index.html";
+}
+
+// Gera e exibe um resumo executivo da conversa atual.
+// O resumo aparece no chat MAS não entra no histórico (não contamina o contexto da IA).
+async function generateSummary() {
+  const history = getConversationHistory().filter(m => m.content);
+  if (history.length < 2) {
+    showSummaryInDom("Não há mensagens suficientes para gerar um resumo.");
+    return;
+  }
+
+  showTyping();
+
+  try {
+    const res = await fetchWithFallback("/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history })
+    });
+    const data = await res.json();
+    removeTyping();
+    showSummaryInDom(`**Resumo Executivo**\n\n${data.summary || "Não foi possível gerar o resumo."}`);
+  } catch {
+    removeTyping();
+    showSummaryInDom("Erro ao gerar o resumo. Tente novamente.");
+  }
+}
+
+// Exibe uma mensagem de resumo direto no DOM sem afetar o histórico da conversa.
+function showSummaryInDom(text) {
+  const chatContainer = document.getElementById("chatMessages");
+  if (!chatContainer) return;
+  const { wrapper } = createMessageElement("assistant", text, false, null, null);
+  wrapper.classList.add("summary-message");
+  chatContainer.appendChild(wrapper);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
 // Abre e fecha a sidebar.
@@ -927,34 +1000,27 @@ function getFileKind(file) {
 // ==========================================================
 // MOSTRA STATUS DO UPLOAD
 // ==========================================================
-function showUploadStatus(file) {
+function showUploadStatus(files) {
   const status = document.getElementById("uploadStatus");
-
   if (!status) return;
 
-  const kind = getFileKind(file);
+  const fileArr = Array.isArray(files) ? files : [files];
 
+  if (fileArr.length > 1) {
+    status.textContent = `Analisando ${fileArr.length} arquivos...`;
+    status.classList.remove("hidden");
+    return;
+  }
+
+  const file = fileArr[0];
+  const kind = getFileKind(file);
   let message = "Analisando arquivo...";
 
-  if (kind === "image") {
-    message = "Analisando imagem e lendo texto visível...";
-  }
-
-  if (kind === "pdf") {
-    message = "Lendo PDF e analisando conteúdo...";
-  }
-
-  if (kind === "excel") {
-    message = "Lendo planilha Excel e organizando dados...";
-  }
-
-  if (kind === "docx") {
-    message = "Lendo documento Word...";
-  }
-
-  if (kind === "text") {
-    message = "Lendo arquivo de texto/código...";
-  }
+  if (kind === "image") message = "Analisando imagem e lendo texto visível...";
+  if (kind === "pdf") message = "Lendo PDF e analisando conteúdo...";
+  if (kind === "excel") message = "Lendo planilha Excel e organizando dados...";
+  if (kind === "docx") message = "Lendo documento Word...";
+  if (kind === "text") message = "Lendo arquivo de texto/código...";
 
   status.textContent = message;
   status.classList.remove("hidden");
@@ -990,9 +1056,9 @@ function clearSelectedFile() {
 }
 
 // ==========================================================
-// MOSTRA PREVIEW DO ARQUIVO SELECIONADO
+// MOSTRA PREVIEW DOS ARQUIVOS SELECIONADOS (1 a 4 chips)
 // ==========================================================
-function renderSelectedFilePreview(file) {
+function renderSelectedFilePreviews(files) {
   const filePreview = document.getElementById("filePreview");
   const attachmentArea = document.getElementById("attachmentArea");
 
@@ -1000,28 +1066,40 @@ function renderSelectedFilePreview(file) {
 
   filePreview.innerHTML = "";
 
-  if (!file) {
+  if (!files || !files.length) {
     attachmentArea.classList.add("hidden");
     return;
   }
 
   attachmentArea.classList.remove("hidden");
 
-  if (file.type.startsWith("image/")) {
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(file);
+  files.forEach(file => {
+    const chip = document.createElement("div");
+    chip.className = "file-chip";
 
-    const span = document.createElement("span");
-    span.textContent = file.name;
+    if (file.type.startsWith("image/")) {
+      const img = document.createElement("img");
+      img.className = "file-chip-thumb";
+      img.src = URL.createObjectURL(file);
+      chip.appendChild(img);
+    } else {
+      const kind = getFileKind(file);
+      const icon = document.createElement("span");
+      icon.className = "file-chip-icon";
+      icon.textContent =
+        kind === "pdf" ? "PDF" :
+        kind === "excel" ? "XLS" :
+        kind === "docx" ? "DOC" : "TXT";
+      chip.appendChild(icon);
+    }
 
-    filePreview.appendChild(img);
-    filePreview.appendChild(span);
-    return;
-  }
+    const name = document.createElement("span");
+    name.className = "file-chip-name";
+    name.textContent = file.name;
+    chip.appendChild(name);
 
-  const span = document.createElement("span");
-  span.textContent = `📎 ${file.name}`;
-  filePreview.appendChild(span);
+    filePreview.appendChild(chip);
+  });
 }
 
 // ==========================================================
@@ -1168,27 +1246,24 @@ async function switchToConversation(conversationId, assistantType) {
   loadConversationList()
 }
 
-  // Busca as conversas do Supabase e monta a lista na sidebar.
-// A conversa ativa fica com destaque visual diferente.
-async function loadConversationList() {
+let allConversationsCache = [];
+
+function renderConversationList(conversations) {
   const list = document.getElementById("conversationList");
   if (!list) return;
 
-  try {
-    const conversations = await getConversations();
-    const currentId = localStorage.getItem("currentConversationId");
+  const currentId = localStorage.getItem("currentConversationId");
+  list.innerHTML = "";
 
-    list.innerHTML = "";
+  if (conversations.length === 0) {
+    const empty = document.createElement("p");
+    empty.classList.add("conversation-list-empty");
+    empty.textContent = "Nenhuma conversa encontrada.";
+    list.appendChild(empty);
+    return;
+  }
 
-    if (conversations.length === 0) {
-      const empty = document.createElement("p");
-      empty.classList.add("conversation-list-empty");
-      empty.textContent = "Nenhuma conversa ainda.";
-      list.appendChild(empty);
-      return;
-    }
-
-    for (const conv of conversations) {
+  for (const conv of conversations) {
       const item = document.createElement("div");
       item.classList.add("conversation-item");
       if (conv.id === currentId) item.classList.add("active");
@@ -1266,6 +1341,16 @@ async function loadConversationList() {
 
       list.appendChild(item);
     }
+}
+
+async function loadConversationList() {
+  try {
+    allConversationsCache = await getConversations();
+    const query = document.getElementById("conversationSearch")?.value || "";
+    const filtered = query.trim()
+      ? allConversationsCache.filter(c => (c.title || "").toLowerCase().includes(query.toLowerCase()))
+      : allConversationsCache;
+    renderConversationList(filtered);
   } catch (error) {
     console.error("Erro ao carregar lista de conversas:", error);
   }
@@ -1283,8 +1368,9 @@ async function handleSubmit(event) {
   // Pega o input de arquivo
   const fileInput = document.getElementById("fileInput");
 
-  // Pega o arquivo selecionado, se existir
-  const file = fileInput?.files[0];
+  // Pega os arquivos selecionados (1 a 4)
+  const files = Array.from(fileInput?.files || []);
+  const file = files[0]; // referência para o primeiro (retrocompatibilidade)
 
   // Pega a IA escolhida: openai ou gemini
   const provider = getProvider();
@@ -1303,7 +1389,7 @@ async function handleSubmit(event) {
   const message = input.value.trim();
 
   // Se não tiver mensagem nem arquivo, não envia nada
-  if (!message && !file) return;
+  if (!message && !files.length) return;
 
   // Verifica se o histórico está longo demais antes de continuar.
   // Se estiver, comprime as mensagens antigas em um resumo.
@@ -1315,16 +1401,24 @@ async function handleSubmit(event) {
   }
 
 
+  // Salva para o botão "Tentar novamente"
+  lastSubmission = { message };
+
   // Pega o histórico antes de adicionar a mensagem atual
   const historyBeforeSubmit = getConversationHistory();
 
-  // Cria o preview visual do arquivo, se houver
+  // Cria o preview visual do primeiro arquivo, se houver
   const attachment = file ? await buildAttachment(file) : null;
+
+  // Label de arquivos para exibir na bolha do usuário
+  const filesLabel = files.length > 1
+    ? `${files.length} arquivos enviados`
+    : file ? `Arquivo enviado: ${file.name}` : "";
 
   // Mostra a mensagem do usuário no chat
   addMessage(
     "user",
-    message || `Arquivo enviado: ${file.name}`,
+    message || filesLabel,
     attachment
   );
 
@@ -1344,8 +1438,8 @@ async function handleSubmit(event) {
   showTyping();
 
   // Se tiver arquivo, mostra um status específico
-  if (file) {
-    showUploadStatus(file);
+  if (files.length) {
+    showUploadStatus(files);
   }
 
   try {
@@ -1355,16 +1449,16 @@ async function handleSubmit(event) {
     // Essas memorias vêm da tabela "memories" e não somem ao limpar conversa.
     const memories = await getMemories(assistantType);
 
-    // Se tiver arquivo, usa uploadFile
-    if (file) {
-      console.log("ENVIANDO ARQUIVO PARA BACKEND");
+    // Se tiver arquivo(s), usa uploadFile
+    if (files.length) {
+      console.log("ENVIANDO ARQUIVO(S) PARA BACKEND:", files.length);
 
       data = await uploadFile(
         provider,
         assistantType,
-        message || "Analise este arquivo.",
+        message || (files.length > 1 ? "Analise estes arquivos." : "Analise este arquivo."),
         historyBeforeSubmit,
-        file,
+        files,
         memories,
         existingConversationId
       );
@@ -1374,7 +1468,6 @@ async function handleSubmit(event) {
       // Se não tiver arquivo, usa streaming para exibir a resposta progressivamente
       console.log("ENVIANDO TEXTO PARA BACKEND (stream)");
 
-      // Remove o "digitando..." antes de criar o bubble manual do stream
       removeTyping();
 
       const chatContainer = document.getElementById("chatMessages");
@@ -1386,46 +1479,58 @@ async function handleSubmit(event) {
       let fullReply = "";
       let finalChart = null;
 
+      // Cria AbortController para permitir parar o streaming
+      currentAbortController = new AbortController();
+      showStopButton();
+
       const streamResponse = await getStreamResponse(
         provider,
         assistantType,
         message,
         [...historyBeforeSubmit, { role: "user", content: message }],
         memories,
-        existingConversationId
+        existingConversationId,
+        currentAbortController.signal
       );
 
       const reader = streamResponse.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
 
-      // Lê cada chunk SSE conforme chega do backend
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
+          buffer += decoder.decode(value, { stream: true });
 
-        // SSE separa eventos por \n\n
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop(); // Último fragmento pode estar incompleto
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop();
 
-        for (const part of parts) {
-          if (!part.startsWith("data: ")) continue;
-          let event;
-          try {
-            event = JSON.parse(part.slice(6));
-          } catch (e) {
-            continue; // JSON malformado, ignora só o parse
+          for (const part of parts) {
+            if (!part.startsWith("data: ")) continue;
+            let event;
+            try { event = JSON.parse(part.slice(6)); } catch { continue; }
+            if (event.chunk) {
+              fullReply += event.chunk;
+              streamBubble.textContent = fullReply;
+              chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+            if (event.done) finalChart = event.chart || null;
+            if (event.error) throw new Error(event.error);
           }
-          if (event.chunk) {
-            fullReply += event.chunk;
-            streamBubble.textContent = fullReply;
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-          }
-          if (event.done) finalChart = event.chart || null;
-          if (event.error) throw new Error(event.error); // propaga para o catch externo
         }
+      } finally {
+        reader.cancel().catch(() => {});
+        hideStopButton();
+        currentAbortController = null;
+      }
+
+      // Stream terminou sem conteúdo — limpa o bubble órfão do DOM
+      if (!fullReply) {
+        renderMessages();
+        clearSelectedFile();
+        return;
       }
 
       // Monta o mesmo formato que o restante do handleSubmit espera
@@ -1452,13 +1557,33 @@ async function handleSubmit(event) {
 
     // A IA respondeu com sucesso: agora criamos (ou reutilizamos) a conversa
     // no Supabase e salvamos a mensagem do usuário + resposta da IA juntas.
+    const isFirstMessage = historyBeforeSubmit.length === 1 && historyBeforeSubmit[0]?.role === "assistant";
     let conversationId = null;
     try {
       conversationId = await getCurrentConversationId();
-      await saveMessage(conversationId, "user", message || (file ? `Arquivo enviado: ${file.name}` : ""), attachment);
+      const savedFileLabel = files.length > 1
+        ? `${files.length} arquivos enviados: ${files.map(f => f.name).join(", ")}`
+        : file ? `Arquivo enviado: ${file.name}` : "";
+      await saveMessage(conversationId, "user", message || savedFileLabel, attachment);
       await saveMessage(conversationId, "assistant", reply);
     } catch (error) {
       console.error("Erro ao salvar mensagens no Supabase:", error);
+    }
+
+    // Gera título automático na primeira troca de mensagens
+    if (isFirstMessage && conversationId && message) {
+      try {
+        const titleRes = await fetchWithFallback("/generate-title", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, reply })
+        });
+        const titleData = await titleRes.json();
+        if (titleData.title) {
+          await updateConversationTitle(conversationId, titleData.title);
+          loadConversationList();
+        }
+      } catch { /* Não crítico */ }
     }
 
     // Depois que a IA respondeu, tentamos transformar a interação em memória.
@@ -1469,8 +1594,11 @@ async function handleSubmit(event) {
         // Define qual texto do usuário será usado para a extração de memória.
         // Se foi mensagem normal, usa a mensagem digitada.
         // Se foi arquivo sem texto, registra que um arquivo foi enviado.
-        const userMessageForMemory =
-          message || (file ? `Arquivo enviado: ${file.name}` : "");
+        const userMessageForMemory = message || (
+          files.length > 1
+            ? `${files.length} arquivos enviados`
+            : file ? `Arquivo enviado: ${file.name}` : ""
+        );
 
         // Pede ao backend para avaliar se esta troca deve virar memória.
         // O backend pode retornar uma string curta ou null.
@@ -1538,21 +1666,57 @@ async function handleSubmit(event) {
     clearSelectedFile();
 
   } catch (error) {
-    // Remove carregamento
+    // AbortError = usuário clicou em "Parar" — não é erro real
+    if (error?.name === "AbortError") {
+      // Remove a mensagem do usuário que foi adicionada ao histórico antes da chamada
+      // para que o estado fique limpo, como se o envio não tivesse acontecido
+      const h = getChatHistory();
+      if (h.length && h[h.length - 1].role === "user") h.pop();
+      saveChatHistory(h);
+      removeTyping();
+      hideUploadStatus();
+      hideStopButton();
+      renderMessages(); // Remove o streaming bubble órfão do DOM
+      return;
+    }
+
     removeTyping();
-
     hideUploadStatus();
+    hideStopButton();
 
-    // Mostra erro no chat
-    addMessage(
-      "assistant",
-      getFriendlyErrorMessage(error)
-    );
-
-    // Atualiza a tela
+    addMessage("assistant", getFriendlyErrorMessage(error));
     renderMessages();
 
-    // Mostra erro técnico no console
+    // Adiciona botão de retry na última mensagem de erro
+    if (lastSubmission) {
+      const container = document.getElementById("chatMessages");
+      const rows = container?.querySelectorAll(".row-assistant");
+      const lastRow = rows?.[rows.length - 1];
+      if (lastRow) {
+        let actions = lastRow.querySelector(".message-actions");
+        if (!actions) {
+          actions = document.createElement("div");
+          actions.className = "message-actions";
+          lastRow.querySelector(".message-box")?.appendChild(actions);
+        }
+        const retryBtn = document.createElement("button");
+        retryBtn.type = "button";
+        retryBtn.className = "retry-btn";
+        retryBtn.textContent = "Tentar novamente";
+        retryBtn.addEventListener("click", () => {
+          // Remove mensagem de erro e a mensagem do usuário do histórico
+          const h = getChatHistory();
+          if (h.length >= 2) h.splice(-2, 2);
+          saveChatHistory(h);
+          // Restaura o texto no input e re-envia
+          const inp = document.getElementById("messageInput");
+          if (inp) inp.value = lastSubmission.message;
+          handleSubmit({ preventDefault: () => {} });
+        });
+        actions.appendChild(retryBtn);
+      }
+    }
+
     console.error("erro ao enviar a mensagem:", error);
   }
 }
@@ -1644,14 +1808,36 @@ async function initializeChat() {
     sendButton.addEventListener("click", handleSubmit);
   }
 
+  const stopStreamButton = document.getElementById("stopStreamButton");
+  if (stopStreamButton) {
+    stopStreamButton.addEventListener("click", () => {
+      if (currentAbortController) currentAbortController.abort();
+    });
+  }
+
+  const summaryButton = document.getElementById("summaryButton");
+  if (summaryButton) {
+    summaryButton.addEventListener("click", generateSummary);
+  }
+
+  const conversationSearch = document.getElementById("conversationSearch");
+  if (conversationSearch) {
+    conversationSearch.addEventListener("input", () => {
+      const query = conversationSearch.value.trim().toLowerCase();
+      const filtered = query
+        ? allConversationsCache.filter(c => (c.title || "").toLowerCase().includes(query))
+        : allConversationsCache;
+      renderConversationList(filtered);
+    });
+  }
+
   // ==========================================================
   // PREVIEW DO ARQUIVO SELECIONADO
   // ==========================================================
   if (fileInput) {
     fileInput.addEventListener("change", () => {
-      const file = fileInput.files[0];
-
-      renderSelectedFilePreview(file);
+      const selected = Array.from(fileInput.files).slice(0, 4);
+      renderSelectedFilePreviews(selected);
     });
   }
 
@@ -1716,13 +1902,12 @@ async function initializeChat() {
 
       chatForm.classList.remove("drag-over");
 
-      const droppedFile = event.dataTransfer.files[0];
+      const droppedFiles = Array.from(event.dataTransfer.files).slice(0, 4);
 
-      if (!droppedFile) return;
+      if (!droppedFiles.length) return;
 
       const dataTransfer = new DataTransfer();
-
-      dataTransfer.items.add(droppedFile);
+      droppedFiles.forEach(f => dataTransfer.items.add(f));
 
       fileInput.files = dataTransfer.files;
 
