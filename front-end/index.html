@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Adapt IA</title>
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#6366f1">
   <link rel="stylesheet" href="assets/styles/index.css">
 </head>
 <body class="home-body">
@@ -60,17 +62,8 @@
           </p>
         </button>
 
-        <button class="choice-card is-locked" type="button" data-agent="personal_department" disabled aria-disabled="true">
-          <span class="choice-card-status">Em breve</span>
-          <span class="choice-card-kicker">DP</span>
-          <h2>Departamento Pessoal</h2>
-          <p>
-            Admissões, demissões, folha, férias, ponto, benefícios e documentos.
-          </p>
-        </button>
-
-        <button class="choice-card is-locked" type="button" data-agent="human_resources" disabled aria-disabled="true">
-          <span class="choice-card-status">Em breve</span>
+        <button onclick="abrirRH()" class="choice-card" type="button" data-agent="human_resources">
+          <span class="choice-card-status is-available">Disponível</span>
           <span class="choice-card-kicker">RH</span>
           <h2>Recursos Humanos</h2>
           <p>
@@ -78,21 +71,30 @@
           </p>
         </button>
 
-        <button class="choice-card is-locked" type="button" data-agent="commercial_sales" disabled aria-disabled="true">
-          <span class="choice-card-status">Em breve</span>
-          <span class="choice-card-kicker">Comercial</span>
-          <h2>Comercial e Vendas</h2>
-          <p>
-            Prospecção, CRM, propostas, negociação, follow-up e análise do funil.
-          </p>
-        </button>
-
-        <button class="choice-card is-locked" type="button" data-agent="customer_service" disabled aria-disabled="true">
-          <span class="choice-card-status">Em breve</span>
+        <button onclick="abrirAtendimento()" class="choice-card" type="button" data-agent="customer_service">
+          <span class="choice-card-status is-available">Disponível</span>
           <span class="choice-card-kicker">Atendimento</span>
           <h2>Atendimento ao Cliente</h2>
           <p>
             Scripts, suporte, pós-venda, padrões de resposta e experiência do cliente.
+          </p>
+        </button>
+
+        <button onclick="abrirMarketing()" class="choice-card" type="button" data-agent="marketing_digital">
+          <span class="choice-card-status is-available">Disponível</span>
+          <span class="choice-card-kicker">Marketing</span>
+          <h2>Marketing Digital</h2>
+          <p>
+            Estratégia, conteúdo, SEO, anúncios, redes sociais e análise de métricas.
+          </p>
+        </button>
+
+        <button onclick="abrirJuridico()" class="choice-card" type="button" data-agent="legal">
+          <span class="choice-card-status is-available">Disponível</span>
+          <span class="choice-card-kicker">Jurídico</span>
+          <h2>Jurídico</h2>
+          <p>
+            Contratos, compliance, LGPD, cláusulas, regulamentações e orientação legal.
           </p>
         </button>
 

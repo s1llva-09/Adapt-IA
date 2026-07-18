@@ -126,18 +126,25 @@ function getProviderLabel(value) {
 }
 
 function getAgentLabel(value) {
-  // Nome amigável mostrado na sidebar.
-  if (value === FINANCIAL_ASSISTANT_TYPE) return "Gestão Financeira";
-  return "Assistente Geral";
+  const labels = {
+    financial_management: "Gestão Financeira",
+    human_resources:      "Recursos Humanos",
+    customer_service:     "Atendimento ao Cliente",
+    marketing_digital:    "Marketing Digital",
+    legal:                "Jurídico"
+  };
+  return labels[value] || "Assistente Geral";
 }
 
 function getInitialAssistantMessage(value) {
-  // Mensagem inicial muda conforme o agente escolhido.
-  if (value === FINANCIAL_ASSISTANT_TYPE) {
-    return "Olá! Sou seu agente de Gestão Financeira. Posso ajudar com fluxo de caixa, contas a pagar, contas a receber, custos, precificação e relatórios.";
-  }
-
-  return "Olá! Me diga sobre qual assunto você quer conversar e eu vou me adaptar ao contexto.";
+  const msgs = {
+    financial_management: "Olá! Sou seu agente de Gestão Financeira. Posso ajudar com fluxo de caixa, contas a pagar, contas a receber, custos, precificação e relatórios.",
+    human_resources:      "Olá! Sou seu agente de RH. Posso ajudar com recrutamento, clima organizacional, treinamento, desempenho, cargos e cultura.",
+    customer_service:     "Olá! Sou seu agente de Atendimento ao Cliente. Posso ajudar com scripts, suporte, pós-venda, padrões de resposta e experiência do cliente.",
+    marketing_digital:    "Olá! Sou seu agente de Marketing Digital. Posso ajudar com estratégias, conteúdo, anúncios, SEO, redes sociais e análise de resultados.",
+    legal:                "Olá! Sou seu agente Jurídico. Posso ajudar com análise de contratos, orientações legais, compliance e questões regulatórias. Sempre recomendo validação com um advogado."
+  };
+  return msgs[value] || "Olá! Me diga sobre qual assunto você quer conversar e eu vou me adaptar ao contexto.";
 }
 
 // Busca o histórico salvo no localStorage.
@@ -183,7 +190,8 @@ function addMessage(role, content, attachment = null, chart = null) {
     role,
     content,
     attachment,
-    chart
+    chart,
+    timestamp: new Date().toISOString()
   });
 
   saveChatHistory(history);
@@ -278,7 +286,8 @@ async function loadConversationFromSupabase() {
     content: msg.content,
     attachment: msg.attachment_name
       ? { name: msg.attachment_name, type: msg.attachment_type }
-      : null
+      : null,
+    timestamp: msg.created_at || null
   }));
 
   saveChatHistory(formattedMessages);
@@ -292,12 +301,21 @@ function escapeHtml(text) {
     .replaceAll(">", "&gt;");
 }
 
-// Formata um markdown simples nas respostas.
+// Aplica formatação inline (negrito, itálico, código) em uma string já escapada.
+function applyInline(text) {
+  text = text.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+  text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  return text;
+}
+
+// Formata markdown nas respostas da IA.
+// Suporta: code blocks, headings (#/##/###), listas (- / 1.), blockquotes (>), HR (---), negrito, itálico, código inline.
 function formatMarkdown(text) {
   let formatted = escapeHtml(text);
 
-  // Extrai blocos de código antes de converter \n em <br>,
-  // para preservar as quebras de linha originais dentro do código.
+  // Extrai blocos de código antes de processar as linhas,
+  // para preservar conteúdo e quebras de linha dentro do <pre>.
   const codeBlocks = [];
   formatted = formatted.replace(/```([\s\S]*?)```/g, (_, code) => {
     const idx = codeBlocks.length;
@@ -305,27 +323,83 @@ function formatMarkdown(text) {
     return `\x00CB${idx}\x00`;
   });
 
-  // Código inline com `
-  formatted = formatted.replace(
-    /`([^`]+)`/g,
-    '<code class="inline-code">$1</code>'
-  );
+  const lines = formatted.split("\n");
+  const parts = [];
+  let inUl = false, inOl = false, inBq = false;
 
-  // Negrito com **texto**
-  formatted = formatted.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  const closeBlocks = () => {
+    if (inUl) { parts.push("</ul>"); inUl = false; }
+    if (inOl) { parts.push("</ol>"); inOl = false; }
+    if (inBq) { parts.push("</blockquote>"); inBq = false; }
+  };
 
-  // Itálico com *texto*
-  formatted = formatted.replace(/\*(.*?)\*/g, "<em>$1</em>");
+  for (const line of lines) {
+    // Code block placeholder — passa direto sem modificação
+    if (line.includes("\x00CB")) {
+      closeBlocks();
+      parts.push(line);
+      continue;
+    }
 
-  // Quebras de linha (fora dos blocos de código)
-  formatted = formatted.replace(/\n/g, "<br>");
+    // Headings
+    const h3m = line.match(/^### (.+)/);
+    const h2m = line.match(/^## (.+)/);
+    const h1m = line.match(/^# (.+)/);
+    // escapeHtml converte > em &gt;, então blockquote fica "&gt; texto"
+    const bqm = line.match(/^&gt; (.*)/);
+    const ulm = line.match(/^[-*] (.+)/);
+    const olm = line.match(/^\d+\. (.+)/);
+    const hrm = /^---+$/.test(line.trim());
 
-  // Restaura blocos de código com newlines reais (para o botão de copiar funcionar)
-  formatted = formatted.replace(/\x00CB(\d+)\x00/g, (_, i) => {
+    if (h3m) {
+      closeBlocks();
+      parts.push(`<h4 class="md-h4">${applyInline(h3m[1])}</h4>`);
+    } else if (h2m) {
+      closeBlocks();
+      parts.push(`<h3 class="md-h3">${applyInline(h2m[1])}</h3>`);
+    } else if (h1m) {
+      closeBlocks();
+      parts.push(`<h2 class="md-h2">${applyInline(h1m[1])}</h2>`);
+    } else if (hrm) {
+      closeBlocks();
+      parts.push(`<hr class="md-hr">`);
+    } else if (ulm) {
+      if (inOl) { parts.push("</ol>"); inOl = false; }
+      if (inBq) { parts.push("</blockquote>"); inBq = false; }
+      if (!inUl) { parts.push('<ul class="md-ul">'); inUl = true; }
+      parts.push(`<li>${applyInline(ulm[1])}</li>`);
+    } else if (olm) {
+      if (inUl) { parts.push("</ul>"); inUl = false; }
+      if (inBq) { parts.push("</blockquote>"); inBq = false; }
+      if (!inOl) { parts.push('<ol class="md-ol">'); inOl = true; }
+      parts.push(`<li>${applyInline(olm[1])}</li>`);
+    } else if (bqm) {
+      if (inUl) { parts.push("</ul>"); inUl = false; }
+      if (inOl) { parts.push("</ol>"); inOl = false; }
+      if (!inBq) { parts.push('<blockquote class="md-blockquote">'); inBq = true; }
+      else parts.push("<br>");
+      parts.push(applyInline(bqm[1]));
+    } else {
+      closeBlocks();
+      if (!line.trim()) {
+        parts.push("<br>");
+      } else {
+        parts.push(applyInline(line) + "<br>");
+      }
+    }
+  }
+
+  closeBlocks();
+
+  let html = parts.join("");
+  html = html.replace(/(<br>)+$/, "");
+
+  // Restaura blocos de código com newlines reais (para o botão copiar funcionar)
+  html = html.replace(/\x00CB(\d+)\x00/g, (_, i) => {
     return `<pre class="code-block"><code>${codeBlocks[parseInt(i, 10)]}</code></pre>`;
   });
 
-  return formatted;
+  return html;
 }
 
 // Remove blocos JSON que a IA escreve quando tenta "desenhar" grafico em texto.
@@ -677,7 +751,8 @@ function createMessageElement(
   content = "",
   useTyping = false,
   attachment = null,
-  chart = null
+  chart = null,
+  timestamp = null
 ) {
   const wrapper = document.createElement("div");
 
@@ -748,6 +823,14 @@ function createMessageElement(
     messageBox.appendChild(createChartElement(chart));
   }
 
+  // Timestamp da mensagem
+  if (!useTyping && timestamp) {
+    const timeEl = document.createElement("span");
+    timeEl.className = "message-timestamp";
+    timeEl.textContent = new Date(timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    messageBox.appendChild(timeEl);
+  }
+
   // Botão copiar apenas para respostas da IA.
   if (role === "assistant" && !useTyping && content) {
     const actions = document.createElement("div");
@@ -792,7 +875,8 @@ function renderMessages() {
       msg.content || "",
       false,
       msg.attachment || null,
-      msg.chart || null
+      msg.chart || null,
+      msg.timestamp || null
     );
 
     container.appendChild(wrapper);
@@ -905,6 +989,92 @@ function showSummaryInDom(text) {
   wrapper.classList.add("summary-message");
   chatContainer.appendChild(wrapper);
   chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+// ==========================================================
+// SCROLL TO BOTTOM
+// ==========================================================
+function setupScrollToBottom() {
+  const container = document.getElementById("chatMessages");
+  const btn = document.getElementById("scrollToBottomBtn");
+  if (!container || !btn) return;
+
+  container.addEventListener("scroll", () => {
+    const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    btn.classList.toggle("hidden", nearBottom);
+  });
+
+  btn.addEventListener("click", () => {
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  });
+}
+
+// ==========================================================
+// EXPORTAR CONVERSA
+// ==========================================================
+function exportConversation() {
+  const history = getChatHistory().filter(m => m.content);
+  if (!history.length) return;
+
+  const lines = history.map(msg => {
+    const who = msg.role === "user" ? "Você" : "IA";
+    const time = msg.timestamp
+      ? ` [${new Date(msg.timestamp).toLocaleString("pt-BR")}]`
+      : "";
+    return `${who}${time}:\n${msg.content}`;
+  });
+
+  const text = lines.join("\n\n---\n\n");
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `conversa-${new Date().toISOString().slice(0, 10)}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ==========================================================
+// CONVERSAS FIXADAS (PINNED)
+// ==========================================================
+function getPinnedIds() {
+  try { return JSON.parse(localStorage.getItem("pinnedConversations") || "[]"); }
+  catch { return []; }
+}
+
+function setPinnedIds(ids) {
+  localStorage.setItem("pinnedConversations", JSON.stringify(ids));
+}
+
+function togglePin(id) {
+  const pinned = getPinnedIds();
+  const idx = pinned.indexOf(id);
+  if (idx === -1) pinned.push(id);
+  else pinned.splice(idx, 1);
+  setPinnedIds(pinned);
+  loadConversationList();
+}
+
+// ==========================================================
+// ATALHOS DE TECLADO
+// ==========================================================
+function setupKeyboardShortcuts() {
+  document.addEventListener("keydown", (e) => {
+    // Ctrl+K: nova conversa
+    if (e.ctrlKey && e.key === "k") {
+      e.preventDefault();
+      clearChat();
+    }
+    // Ctrl+/: foco no campo de busca da sidebar
+    if (e.ctrlKey && e.key === "/") {
+      e.preventDefault();
+      document.getElementById("conversationSearch")?.focus();
+    }
+    // Esc: fecha menu de arquivo
+    if (e.key === "Escape") {
+      document.getElementById("fileTypeMenu")?.classList.add("hidden");
+    }
+  });
 }
 
 // Abre e fecha a sidebar.
@@ -1235,7 +1405,8 @@ async function switchToConversation(conversationId, assistantType) {
       content: msg.content,
       attachment: msg.attachment_name
         ? { name: msg.attachment_name, type: msg.attachment_type }
-        : null
+        : null,
+      timestamp: msg.created_at || null
     }))
     saveChatHistory(formatted)
   } catch (error) {
@@ -1253,9 +1424,18 @@ function renderConversationList(conversations) {
   if (!list) return;
 
   const currentId = localStorage.getItem("currentConversationId");
+  const pinnedIds = getPinnedIds();
+
+  // Pinned primeiro, depois ordem original (mais recente primeiro)
+  const sorted = [...conversations].sort((a, b) => {
+    const ap = pinnedIds.includes(a.id) ? 0 : 1;
+    const bp = pinnedIds.includes(b.id) ? 0 : 1;
+    return ap - bp;
+  });
+
   list.innerHTML = "";
 
-  if (conversations.length === 0) {
+  if (sorted.length === 0) {
     const empty = document.createElement("p");
     empty.classList.add("conversation-list-empty");
     empty.textContent = "Nenhuma conversa encontrada.";
@@ -1263,10 +1443,13 @@ function renderConversationList(conversations) {
     return;
   }
 
-  for (const conv of conversations) {
+  for (const conv of sorted) {
+      const isPinned = pinnedIds.includes(conv.id);
+
       const item = document.createElement("div");
       item.classList.add("conversation-item");
       if (conv.id === currentId) item.classList.add("active");
+      if (isPinned) item.classList.add("is-pinned");
 
       // Coluna com título e data
       const info = document.createElement("div");
@@ -1283,6 +1466,17 @@ function renderConversationList(conversations) {
       info.appendChild(title);
       info.appendChild(date);
 
+
+      // Botão de fixar (pin)
+      const pinBtn = document.createElement("button");
+      pinBtn.classList.add("conversation-item-pin");
+      pinBtn.title = isPinned ? "Desafixar" : "Fixar conversa";
+      pinBtn.classList.toggle("pinned", isPinned);
+      pinBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="${isPinned ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+      pinBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        togglePin(conv.id);
+      });
 
       // Botão de renomear (aparece ao passar o mouse)
       const renameBtn = document.createElement("button");
@@ -1331,6 +1525,7 @@ function renderConversationList(conversations) {
       });
 
       item.appendChild(info);
+      item.appendChild(pinBtn);
       item.appendChild(renameBtn);
       item.appendChild(deleteBtn);
 
@@ -1479,6 +1674,9 @@ async function handleSubmit(event) {
       let fullReply = "";
       let finalChart = null;
 
+      // Cursor piscante durante o streaming
+      streamBubble.classList.add("streaming-active");
+
       // Cria AbortController para permitir parar o streaming
       currentAbortController = new AbortController();
       showStopButton();
@@ -1521,6 +1719,7 @@ async function handleSubmit(event) {
           }
         }
       } finally {
+        streamBubble.classList.remove("streaming-active");
         reader.cancel().catch(() => {});
         hideStopButton();
         currentAbortController = null;
@@ -1801,6 +2000,8 @@ async function initializeChat() {
 
   // Configura textarea
   setupTextarea();
+  setupScrollToBottom();
+  setupKeyboardShortcuts();
 
   // Envia apenas pelo botão via JavaScript.
   // Como agora não usamos submit nativo, evita reload/abort do fetch.
@@ -1922,6 +2123,7 @@ window.clearChat = clearChat
 window.limparConversa = limparConversa
 window.goBack = goBack;
 window.toggleSidebar = toggleSidebar;
+window.exportConversation = exportConversation;
 // Permite usar logout() direto no HTML
 window.logout = logout;
 

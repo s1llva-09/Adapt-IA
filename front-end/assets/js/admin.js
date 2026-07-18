@@ -5,9 +5,12 @@ import { fetchWithFallback } from "./api.js";
 protectPage();
 
 // Lista de agentes disponíveis no sistema.
-// Adicione aqui quando criar novos agentes.
 const ALL_AGENTS = [
-  { value: "financial_management", label: "Gestão Financeira" }
+  { value: "financial_management", label: "Gestão Financeira" },
+  { value: "human_resources",      label: "Recursos Humanos" },
+  { value: "customer_service",     label: "Atendimento ao Cliente" },
+  { value: "marketing_digital",    label: "Marketing Digital" },
+  { value: "legal",                label: "Jurídico" }
 ];
 
 // Estado do modal de edição de agentes
@@ -339,10 +342,137 @@ document.getElementById("createUserForm").addEventListener("submit", async (e) =
 document.getElementById("refreshUsersBtn").addEventListener("click", loadUsers);
 
 // ----------------------------------------------------------
+// ANALYTICS
+// ----------------------------------------------------------
+
+const AGENT_LABELS = {
+  financial_management: "Gest. Financeira",
+  human_resources:      "Recursos Humanos",
+  customer_service:     "Atendimento",
+  marketing_digital:    "Marketing",
+  legal:                "Jurídico",
+  general:              "Geral"
+};
+
+async function loadStats() {
+  const token = await getAuthToken();
+  const grid = document.getElementById("statsGrid");
+  const agentsEl = document.getElementById("statsAgents");
+  const dailyEl = document.getElementById("statsDaily");
+  const barsEl = document.getElementById("statsBars");
+
+  try {
+    const res = await fetchWithFallback("/admin/stats", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+
+    grid.innerHTML = `
+      <div class="stat-card"><span class="stat-value">${data.totalUsers ?? "-"}</span><span class="stat-label">Usuários</span></div>
+      <div class="stat-card"><span class="stat-value">${data.totalConversations ?? "-"}</span><span class="stat-label">Conversas</span></div>
+      <div class="stat-card"><span class="stat-value">${data.totalMessages ?? "-"}</span><span class="stat-label">Mensagens</span></div>
+    `;
+
+    // Agentes mais usados
+    if (data.agentCount && Object.keys(data.agentCount).length) {
+      const sorted = Object.entries(data.agentCount).sort((a, b) => b[1] - a[1]);
+      agentsEl.innerHTML = `<p class="stats-section-title">Conversas por agente</p>` +
+        sorted.map(([k, v]) => `<div class="agent-stat-row"><span>${AGENT_LABELS[k] || k}</span><span class="agent-stat-count">${v}</span></div>`).join("");
+      agentsEl.classList.remove("hidden");
+    }
+
+    // Mensagens por dia
+    if (data.dailyMessages?.length) {
+      const max = Math.max(...data.dailyMessages.map(d => d.count), 1);
+      barsEl.innerHTML = data.dailyMessages.map(d => {
+        const pct = Math.round((d.count / max) * 100);
+        const label = new Date(d.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+        return `<div class="stats-bar-col">
+          <span class="stats-bar-value">${d.count}</span>
+          <div class="stats-bar-track"><div class="stats-bar-fill" style="height:${pct}%"></div></div>
+          <span class="stats-bar-label">${label}</span>
+        </div>`;
+      }).join("");
+      dailyEl.classList.remove("hidden");
+    }
+
+  } catch (err) {
+    grid.innerHTML = `<p class="admin-loading">Erro ao carregar estatísticas.</p>`;
+    console.error(err);
+  }
+}
+
+// ----------------------------------------------------------
+// EDITOR DE SYSTEM PROMPTS
+// ----------------------------------------------------------
+
+async function loadPrompts() {
+  const token = await getAuthToken();
+  const select = document.getElementById("promptAgentSelect");
+  const textarea = document.getElementById("promptTextarea");
+
+  // Preenche o select com os agentes
+  select.innerHTML = ALL_AGENTS.map(a => `<option value="${a.value}">${a.label}</option>`).join("");
+
+  let customPrompts = {};
+
+  try {
+    const res = await fetchWithFallback("/admin/prompts", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    customPrompts = data.prompts || {};
+  } catch { /* continua com prompts vazios */ }
+
+  const updateTextarea = () => {
+    const agent = select.value;
+    textarea.value = customPrompts[agent] || "";
+    textarea.placeholder = "Deixe vazio para usar o prompt padrão do sistema...";
+  };
+
+  select.addEventListener("change", updateTextarea);
+  updateTextarea();
+
+  document.getElementById("savePromptBtn").addEventListener("click", async () => {
+    const agent = select.value;
+    const prompt = textarea.value;
+    const msgEl = document.getElementById("promptMsg");
+    const btn = document.getElementById("savePromptBtn");
+    btn.disabled = true;
+
+    try {
+      const tok = await getAuthToken();
+      const res = await fetchWithFallback(`/admin/prompts/${agent}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+        body: JSON.stringify({ prompt })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      customPrompts[agent] = prompt.trim() || undefined;
+      msgEl.textContent = "Prompt salvo com sucesso!";
+      msgEl.className = "settings-msg is-success";
+      msgEl.classList.remove("hidden");
+      setTimeout(() => msgEl.classList.add("hidden"), 3000);
+    } catch (err) {
+      msgEl.textContent = `Erro: ${err.message}`;
+      msgEl.className = "settings-msg is-error";
+      msgEl.classList.remove("hidden");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+// ----------------------------------------------------------
 // INICIALIZAÇÃO
 // ----------------------------------------------------------
 
 checkAdmin().then(() => {
   setupCreateForm();
   loadUsers();
+  loadStats();
+  loadPrompts();
 });

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Adapt IA - Chat</title>
   <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#6366f1">
   <link rel="stylesheet" href="assets/styles/index.css">
 </head>
 <body class="chat-body">
@@ -55,13 +57,21 @@
           <h1>Seu chat inteligente</h1>
           <p>Faça perguntas, mude de assunto e deixe a IA se adaptar ao contexto.</p>
         </div>
-        <button type="button" id="summaryButton" class="summary-btn" title="Gerar resumo executivo da conversa">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-          Resumo
-        </button>
+        <div class="chat-topbar-actions">
+          <button type="button" id="exportButton" class="topbar-icon-btn" title="Exportar conversa (Ctrl+E)" onclick="exportConversation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button type="button" id="summaryButton" class="summary-btn" title="Gerar resumo executivo da conversa">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Resumo
+          </button>
+        </div>
       </header>
 
-      <div id="chatMessages" class="chat-messages"></div>
+      <div class="chat-messages-wrapper">
+        <div id="chatMessages" class="chat-messages"></div>
+        <button id="scrollToBottomBtn" class="scroll-to-bottom-btn hidden" title="Ir para o fim" aria-label="Rolar para o fim">↓</button>
+      </div>
 
       <!--
         Área separada para mostrar arquivo anexado.
@@ -130,5 +140,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script type="module" src="assets/js/chat.js?v=1000"></script>
+  <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");</script>
 </body>
 </html>

@@ -1,0 +1,17 @@
+{
+  "name": "Adapt IA",
+  "short_name": "Adapt IA",
+  "description": "Assistente de IA empresarial adaptável",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#070c18",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "assets/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

@@ -202,8 +202,34 @@ function abrirGestaoFinanceira() {
   window.location.href = "chat.html"
 }
 
+// Fábrica genérica para abrir qualquer agente
+function abrirAgente(assistantType) {
+  const provider = getSelectedProvider();
+  const initialHistory = [{ role: "assistant", content: getInitialHistory(assistantType)[0]?.content || "Olá! Como posso ajudar?" }];
+
+  if (isLocalHost() && window.location.protocol.startsWith("http") && window.location.port !== "3000") {
+    redirectToBackendChat(provider, initialHistory, assistantType);
+    return;
+  }
+
+  localStorage.setItem("assistantType", assistantType);
+  localStorage.setItem("provider", provider);
+  localStorage.setItem("chatHistory", JSON.stringify(initialHistory));
+  localStorage.removeItem("currentConversationId");
+  window.location.href = "chat.html";
+}
+
+function abrirRH()         { abrirAgente("human_resources"); }
+function abrirAtendimento() { abrirAgente("customer_service"); }
+function abrirMarketing()  { abrirAgente("marketing_digital"); }
+function abrirJuridico()   { abrirAgente("legal"); }
+
 //Permite chamar a função direto do html
 window.abrirGestaoFinanceira = abrirGestaoFinanceira
+window.abrirRH = abrirRH
+window.abrirAtendimento = abrirAtendimento
+window.abrirMarketing = abrirMarketing
+window.abrirJuridico = abrirJuridico
 
 // Mostra o link do Painel Admin no topbar apenas se o usuário for admin
 async function setupAdminLink() {

@@ -149,11 +149,15 @@ console.log("GEMINI:", process.env.GEMINI_API_KEY ? "OK" : "NÃO ENCONTRADA");
 // Este texto é enviado junto com cada requisição para
 // instruir a IA sobre como deve se comportar
 function getSystemPrompt(assistantType, memories = []) {
-  // Transforma os registros da tabela memories em texto simples para o prompt.
-  // Cada memoria tem content, assistant_type, user_id etc.; aqui usamos apenas content.
   const memoryText = Array.isArray(memories) && memories.length > 0
     ? memories.map((memory) => `- ${memory.content}`).join("\n")
     : "Nenhuma memória persistente registrada ainda.";
+
+  // Prompt customizado pelo admin tem prioridade
+  const customPrompts = readCustomPrompts();
+  if (customPrompts[assistantType]) {
+    return customPrompts[assistantType].replace("{{memories}}", memoryText);
+  }
 
   // Se o front-end enviou financial_management, o backend troca o papel
   // da IA para um agente especializado em gestão financeira empresarial.
@@ -178,6 +182,70 @@ Regras:
 - Se houver dados suficientes para gráfico, explique a visualização em texto; o sistema exibirá o gráfico visual separadamente.
 - Responda sempre no idioma do usuário.
 - Seja claro, profissional e útil.
+    `.trim();
+  }
+
+  if (assistantType === "human_resources") {
+    return `
+Você é um agente especialista em Recursos Humanos.
+
+Memórias persistentes do usuário:
+${memoryText}
+
+Regras:
+- Ajude com recrutamento, seleção, clima organizacional, avaliação de desempenho, planos de carreira, treinamento e cultura.
+- Forneça modelos de documentos, roteiros de entrevista, análises de perfil e estratégias de retenção.
+- Quando houver dúvidas trabalhistas ou legais, recomende consulta com profissional habilitado.
+- Seja empático, profissional e prático.
+- Responda sempre no idioma do usuário.
+    `.trim();
+  }
+
+  if (assistantType === "customer_service") {
+    return `
+Você é um agente especialista em Atendimento ao Cliente.
+
+Memórias persistentes do usuário:
+${memoryText}
+
+Regras:
+- Ajude com scripts de atendimento, respostas padronizadas, tratamento de reclamações, pós-venda e métricas de satisfação (NPS, CSAT).
+- Sugira melhorias na experiência do cliente e estratégias de fidelização.
+- Crie modelos de respostas para e-mail, chat e redes sociais quando solicitado.
+- Seja claro, cordial e objetivo.
+- Responda sempre no idioma do usuário.
+    `.trim();
+  }
+
+  if (assistantType === "marketing_digital") {
+    return `
+Você é um agente especialista em Marketing Digital.
+
+Memórias persistentes do usuário:
+${memoryText}
+
+Regras:
+- Ajude com estratégias de conteúdo, SEO, Google Ads, redes sociais, e-mail marketing, funil de vendas e análise de métricas.
+- Crie copies, títulos, legendas e sugestões de pauta quando solicitado.
+- Analise dados de performance e sugira melhorias baseadas em dados.
+- Seja criativo, estratégico e orientado a resultados.
+- Responda sempre no idioma do usuário.
+    `.trim();
+  }
+
+  if (assistantType === "legal") {
+    return `
+Você é um agente de orientação jurídica empresarial.
+
+Memórias persistentes do usuário:
+${memoryText}
+
+Regras:
+- Ajude com análise de contratos, cláusulas, termos e condições, compliance, LGPD, regulamentações setoriais e questões societárias.
+- Identifique riscos e pontos de atenção em documentos jurídicos.
+- SEMPRE recomende validação com advogado para decisões legais efetivas — você oferece orientação, não consultoria jurídica formal.
+- Seja preciso, claro e não invente leis ou artigos.
+- Responda sempre no idioma do usuário.
     `.trim();
   }
 
@@ -1420,6 +1488,87 @@ app.delete("/admin/users/:userId", requireAdmin, async (req, res) => {
   const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
   if (error) return res.status(400).json({ error: error.message });
 
+  res.json({ success: true });
+});
+
+// ----------------------------------------------------------
+// ROTA: Analytics (admin)
+// ----------------------------------------------------------
+
+app.get("/admin/stats", requireAdmin, async (req, res) => {
+  try {
+    const [
+      { count: totalUsers },
+      { count: totalConversations },
+      { count: totalMessages },
+      { data: agentRows },
+      { data: dailyRows }
+    ] = await Promise.all([
+      supabaseAdmin.from("profiles").select("*", { count: "exact", head: true }),
+      supabaseAdmin.from("conversations").select("*", { count: "exact", head: true }),
+      supabaseAdmin.from("messages").select("*", { count: "exact", head: true }),
+      supabaseAdmin.from("conversations").select("assistant_type"),
+      supabaseAdmin.from("messages")
+        .select("created_at")
+        .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+    ]);
+
+    // Contagem por agente
+    const agentCount = {};
+    (agentRows || []).forEach(r => {
+      const k = r.assistant_type || "general";
+      agentCount[k] = (agentCount[k] || 0) + 1;
+    });
+
+    // Mensagens por dia (últimos 7 dias)
+    const dayCount = {};
+    (dailyRows || []).forEach(r => {
+      const day = r.created_at?.slice(0, 10);
+      if (day) dayCount[day] = (dayCount[day] || 0) + 1;
+    });
+    const last7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000);
+      const key = d.toISOString().slice(0, 10);
+      return { date: key, count: dayCount[key] || 0 };
+    });
+
+    return res.json({ totalUsers, totalConversations, totalMessages, agentCount, dailyMessages: last7 });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ----------------------------------------------------------
+// ROTA: Editor de system prompts (admin)
+// Armazena prompts customizados em backend/prompts.json
+// ----------------------------------------------------------
+
+const PROMPTS_FILE = path.join(__dirname, "prompts.json");
+
+function readCustomPrompts() {
+  try {
+    if (fs.existsSync(PROMPTS_FILE)) return JSON.parse(fs.readFileSync(PROMPTS_FILE, "utf-8"));
+  } catch { /* ignore */ }
+  return {};
+}
+
+function writeCustomPrompts(data) {
+  fs.writeFileSync(PROMPTS_FILE, JSON.stringify(data, null, 2), "utf-8");
+}
+
+app.get("/admin/prompts", requireAdmin, (req, res) => {
+  res.json({ prompts: readCustomPrompts() });
+});
+
+app.put("/admin/prompts/:agentType", requireAdmin, (req, res) => {
+  const { agentType } = req.params;
+  const { prompt } = req.body;
+  if (typeof prompt !== "string") return res.status(400).json({ error: "Campo 'prompt' obrigatório." });
+
+  const data = readCustomPrompts();
+  if (prompt.trim()) data[agentType] = prompt.trim();
+  else delete data[agentType]; // string vazia = restaurar padrão
+  writeCustomPrompts(data);
   res.json({ success: true });
 });
 
