@@ -81,37 +81,8 @@ function redirectToBackendChat(provider, history, assistantType = null) {
   window.location.href = `http://${hostname}:3000/chat.html`;
 }
 
-// Retorna o motor selecionado na tela.
 function getSelectedProvider() {
-  // Procura na tela qual botão está marcado com is-selected.
-  // Se não encontrar, usa o que estiver salvo no navegador.
-  // Se também não houver nada salvo, cai no provider padrão.
-  const selectedButton = document.querySelector("[data-provider].is-selected");
-  return selectedButton?.dataset.provider || localStorage.getItem("provider") || DEFAULT_PROVIDER;
-}
-
-// Marca visualmente o botão Gemini/OpenAI e salva a escolha.
-function setSelectedProvider(provider) {
-  // Salva para que a tela de chat saiba qual motor usar.
-  localStorage.setItem("provider", provider);
-
-  // Atualiza o visual dos botões: só o provider clicado fica selecionado.
-  document.querySelectorAll("[data-provider]").forEach((button) => {
-    button.classList.toggle("is-selected", button.dataset.provider === provider);
-  });
-}
-
-// Ativa a troca entre Gemini e OpenAI na tela inicial.
-function setupProviderButtons() {
-  // Ao abrir a tela, mantém marcado o provider salvo anteriormente.
-  setSelectedProvider(getSelectedProvider());
-
-  // Cada clique em Gemini/OpenAI troca a seleção e salva no localStorage.
-  document.querySelectorAll("[data-provider]").forEach((button) => {
-    button.addEventListener("click", () => {
-      setSelectedProvider(button.dataset.provider);
-    });
-  });
+  return localStorage.getItem("provider") || DEFAULT_PROVIDER;
 }
 
 // ============================================================
@@ -271,7 +242,6 @@ async function setupAdminLink() {
 
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
-  setupProviderButtons();
   setupBackButton();
   setupAdminLink();
 });

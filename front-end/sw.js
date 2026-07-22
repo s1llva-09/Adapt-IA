@@ -1,4 +1,4 @@
-const CACHE = "adapt-ia-v1";
+const CACHE = "adapt-ia-v2";
 const STATIC = [
   "/index.html",
   "/chat.html",

@@ -7,10 +7,10 @@ const client = new GoogleGenAI({
 // Modelos lidos do .env (separados por virgula).
 // Ex: GEMINI_CHAT_MODELS=gemini-2.5-flash,gemini-2.0-flash
 // Se nao definido, usa os defaults abaixo.
-const CHAT_MODELS = (process.env.GEMINI_CHAT_MODELS || "gemini-2.5-flash,gemini-2.0-flash")
+const CHAT_MODELS = (process.env.GEMINI_CHAT_MODELS || "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-1.5-flash")
   .split(",").map((m) => m.trim()).filter(Boolean);
 
-const IMAGE_MODELS = (process.env.GEMINI_IMAGE_MODELS || "gemini-2.5-flash,gemini-2.0-flash")
+const IMAGE_MODELS = (process.env.GEMINI_IMAGE_MODELS || "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-1.5-flash")
   .split(",").map((m) => m.trim()).filter(Boolean);
 
 console.log("Modelos de chat configurados:", CHAT_MODELS);
