@@ -1,8 +1,10 @@
 import { protectPage, getSession } from "./auth.js";
 import { fetchWithFallback } from "./api.js";
+import { initTheme } from "./theme.js";
 
 // Protege a página: redireciona para login se não estiver logado
 protectPage();
+initTheme();
 
 // Lista de agentes disponíveis no sistema.
 const ALL_AGENTS = [

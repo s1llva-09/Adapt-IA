@@ -8,6 +8,7 @@
 //acessa as paginas apenas se estiver logado
 import { protectPage, getSession } from "./auth.js";
 import { fetchWithFallback } from "./api.js";
+import { initTheme } from "./theme.js";
 protectPage();
 
 // Provider padrão usado quando o usuário ainda não escolheu Gemini/OpenAI.
@@ -219,19 +220,17 @@ function abrirAgente(assistantType) {
   window.location.href = "chat.html";
 }
 
-function abrirRH()         { abrirAgente("human_resources"); }
-function abrirAtendimento() { abrirAgente("customer_service"); }
-function abrirMarketing()  { abrirAgente("marketing_digital"); }
-function abrirJuridico()   { abrirAgente("legal"); }
+function abrirRH()        { abrirAgente("human_resources"); }
+function abrirMarketing() { abrirAgente("marketing_digital"); }
+function abrirJuridico()  { abrirAgente("legal"); }
 
 //Permite chamar a função direto do html
 window.abrirGestaoFinanceira = abrirGestaoFinanceira
 window.abrirRH = abrirRH
-window.abrirAtendimento = abrirAtendimento
 window.abrirMarketing = abrirMarketing
 window.abrirJuridico = abrirJuridico
 
-// Mostra o link do Painel Admin no topbar apenas se o usuário for admin
+// Mostra o Painel Admin para admins e bloqueia cards de agentes sem permissão
 async function setupAdminLink() {
   const session = await getSession();
   if (!session) return;
@@ -242,15 +241,36 @@ async function setupAdminLink() {
       headers: { Authorization: `Bearer ${session.access_token}` }
     });
     const data = await res.json();
-    if (data.profile?.role === "admin") {
+    const profile = data.profile;
+
+    if (profile?.role === "admin") {
       document.getElementById("adminNavLink")?.classList.remove("hidden");
     }
+
+    const allowed = profile?.allowed_agents;
+    if (Array.isArray(allowed) && allowed.length > 0) {
+      document.querySelectorAll(".choice-card[data-agent]").forEach(card => {
+        const agent = card.dataset.agent;
+        if (!allowed.includes(agent) && !card.classList.contains("is-locked")) {
+          card.classList.add("is-locked");
+          card.disabled = true;
+          card.setAttribute("aria-disabled", "true");
+          card.removeAttribute("onclick");
+          const status = card.querySelector(".choice-card-status");
+          if (status) {
+            status.textContent = "Sem acesso";
+            status.classList.remove("is-available");
+          }
+        }
+      });
+    }
   } catch (e) {
-    // Perfil indisponível, não mostra o link
+    // Perfil indisponível
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
   setupProviderButtons();
   setupBackButton();
   setupAdminLink();

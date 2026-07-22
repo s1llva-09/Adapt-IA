@@ -8,6 +8,7 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#6366f1">
   <link rel="stylesheet" href="assets/styles/index.css">
+  <script>(function(){var t=localStorage.getItem("theme")||"dark";document.documentElement.setAttribute("data-theme",t);})();</script>
 </head>
 <body class="home-body">
   <main class="container">
@@ -22,6 +23,7 @@
 
         <!-- Menu de navegação — Painel Admin visível só para admins (controlado por main.js) -->
         <nav class="topbar-nav">
+          <button type="button" class="theme-toggle-btn" data-theme-toggle onclick="toggleTheme()" title="Modo claro" aria-label="Modo claro"></button>
           <a href="admin.html" class="topbar-nav-link topbar-nav-admin hidden" id="adminNavLink">Painel Admin</a>
           <a href="settings.html" class="topbar-nav-link">Configurações</a>
         </nav>
@@ -68,15 +70,6 @@
           <h2>Recursos Humanos</h2>
           <p>
             Recrutamento, clima, treinamento, desempenho, cargos e cultura organizacional.
-          </p>
-        </button>
-
-        <button onclick="abrirAtendimento()" class="choice-card" type="button" data-agent="customer_service">
-          <span class="choice-card-status is-available">Disponível</span>
-          <span class="choice-card-kicker">Atendimento</span>
-          <h2>Atendimento ao Cliente</h2>
-          <p>
-            Scripts, suporte, pós-venda, padrões de resposta e experiência do cliente.
           </p>
         </button>
 

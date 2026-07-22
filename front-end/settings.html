@@ -9,6 +9,7 @@
   <meta name="theme-color" content="#6366f1">
   <link rel="stylesheet" href="assets/styles/index.css">
   <link rel="stylesheet" href="assets/styles/settings.css">
+  <script>(function(){var t=localStorage.getItem("theme")||"dark";document.documentElement.setAttribute("data-theme",t);})();</script>
 </head>
 <body class="settings-body">
 
@@ -18,10 +19,13 @@
       <div class="settings-header-divider"></div>
       <h1 class="settings-header-title">Configurações</h1>
     </div>
-    <button class="settings-back-btn" onclick="window.location.href='index.html'">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      Voltar
-    </button>
+    <div class="settings-header-right">
+      <button type="button" class="theme-toggle-btn" data-theme-toggle onclick="toggleTheme()" title="Modo claro" aria-label="Modo claro"></button>
+      <button class="settings-back-btn" onclick="window.location.href='index.html'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar
+      </button>
+    </div>
   </header>
 
   <main class="settings-main">

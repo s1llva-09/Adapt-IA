@@ -12,6 +12,7 @@ const STATIC = [
   "/assets/js/database.js",
   "/assets/js/main.js",
   "/assets/js/settings.js",
+  "/assets/js/theme.js",
   "/assets/js/supabaseClient.js",
   "/assets/robot-avatar.svg",
   "/assets/favicon.ico"

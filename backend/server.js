@@ -76,6 +76,21 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
+async function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Token ausente." });
+
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: "Token inválido." });
+
+  const { data: profile } = await supabaseAdmin
+    .from("profiles").select("allowed_agents, role").eq("id", user.id).single();
+
+  req.user = user;
+  req.profile = profile || { allowed_agents: [], role: "user" };
+  next();
+}
+
 // Serviço que usa Gemini para fazer OCR em imagens
 const { analyzeImageWithGemini } = require("./services/visionService");
 
@@ -1204,7 +1219,7 @@ app.post("/summarize", async (req, res) => {
 // Endpoint para enviar mensagens de texto para a IA
 // Sem upload de arquivos, apenas conversa
 
-app.post("/chat", async (req, res) => {
+app.post("/chat", requireAuth, async (req, res) => {
   try {
     // Extrai dados enviados pelo front-end
     // assistantType define qual agente deve responder.
@@ -1232,6 +1247,14 @@ app.post("/chat", async (req, res) => {
       return res.status(400).json({
         reply: "Dados inválidos. provider e message são obrigatórios."
       });
+    }
+
+    // --------------------------------------------------------
+    // VALIDAÇÃO DE ACESSO AO AGENTE
+    // --------------------------------------------------------
+    const allowed = req.profile?.allowed_agents;
+    if (allowed?.length > 0 && assistantType && !allowed.includes(assistantType)) {
+      return res.status(403).json({ error: "Você não tem permissão para usar este agente." });
     }
 
     // --------------------------------------------------------
@@ -1325,7 +1348,7 @@ app.post("/chat", async (req, res) => {
 // Versão com streaming da rota /chat.
 // Usa SSE (Server-Sent Events) para enviar o texto conforme é gerado.
 // O front-end lê os chunks e exibe progressivamente, igual ao ChatGPT.
-app.post("/chat-stream", async (req, res) => {
+app.post("/chat-stream", requireAuth, async (req, res) => {
   const {
     provider,
     assistantType,
@@ -1339,6 +1362,12 @@ app.post("/chat-stream", async (req, res) => {
     return res.status(400).json({
       error: "provider e message são obrigatórios"
     })
+  }
+
+  // Validação de acesso ao agente
+  const allowed = req.profile?.allowed_agents;
+  if (allowed?.length > 0 && assistantType && !allowed.includes(assistantType)) {
+    return res.status(403).json({ error: "Você não tem permissão para usar este agente." });
   }
 
   // Cabeçalhos SSE: mantém a conexão aberta e envia eventos de texto

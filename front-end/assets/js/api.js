@@ -133,12 +133,13 @@ export async function fetchWithFallback(path, options) {
 // Envia uma mensagem de texto simples para o backend.
 // Não inclui arquivos, apenas conversa por texto.
 
-export async function sendMessage(provider, assistantType, message, history, memories = [], conversationId = null) {
+export async function sendMessage(provider, assistantType, message, history, memories = [], conversationId = null, authToken = null) {
   // Faz requisição POST para /chat
   const response = await fetchWithFallback("/chat", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
     },
     body: JSON.stringify({
       provider,      // "openai" ou "gemini"
@@ -279,10 +280,13 @@ export async function compressHistory(messages) {
 // Retorna a Response bruta para que chat.js leia os chunks
 // em tempo real via response.body.getReader().
 
-export async function getStreamResponse(provider, assistantType, message, history, memories = [], conversationId = null, signal = null) {
+export async function getStreamResponse(provider, assistantType, message, history, memories = [], conversationId = null, signal = null, authToken = null) {
   const options = {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+    },
     body: JSON.stringify({ provider, assistantType, message, history, memories, conversationId })
   };
   if (signal) options.signal = signal;

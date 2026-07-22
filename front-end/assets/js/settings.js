@@ -1,8 +1,10 @@
 import { protectPage, getUser, getSession, updatePassword, logout } from "./auth.js";
 import { fetchWithFallback } from "./api.js";
 import { getAllMemories, deleteMemory } from "./database.js";
+import { initTheme } from "./theme.js";
 
 protectPage();
+initTheme();
 
 // ----------------------------------------------------------
 // PERFIL

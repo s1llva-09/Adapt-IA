@@ -1,7 +1,8 @@
 console.log("CHAT.JS NOVO CARREGADO");
 // Importa as funções que conversam com o backend.
 import { extractMemory, sendMessage, uploadFile, compressHistory, getStreamResponse, fetchWithFallback } from "./api.js";
-import { protectPage, logout } from "./auth.js";
+import { protectPage, logout, getSession } from "./auth.js";
+import { initTheme } from "./theme.js";
 import {
   createConversation,
   getConversationById,
@@ -25,8 +26,6 @@ const FINANCIAL_ASSISTANT_TYPE = "financial_management"
 const MAX_HISTORY_LENGTH = 20
 const RECENT_MESSAGES_TO_KEEP = 6
 
-// Guarda a última mensagem enviada para o botão "Tentar novamente"
-let lastSubmission = null;
 // Controla o AbortController do streaming atual
 let currentAbortController = null;
 
@@ -1313,6 +1312,24 @@ function getFriendlyErrorMessage(error) {
   return message || "Ocorreu um erro ao processar sua solicitação.";
 }
 
+function showToast(message) {
+  const existing = document.getElementById("adaptToast");
+  if (existing) existing.remove();
+
+  const toast = document.createElement("div");
+  toast.id = "adaptToast";
+  toast.className = "adapt-toast";
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  requestAnimationFrame(() => toast.classList.add("adapt-toast--visible"));
+
+  setTimeout(() => {
+    toast.classList.remove("adapt-toast--visible");
+    toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+  }, 4000);
+}
+
 // ============================================================
 // FUNÇÃO: COMPRIMIR HISTÓRICO SE NECESSÁRIO
 // ============================================================
@@ -1596,9 +1613,6 @@ async function handleSubmit(event) {
   }
 
 
-  // Salva para o botão "Tentar novamente"
-  lastSubmission = { message };
-
   // Pega o histórico antes de adicionar a mensagem atual
   const historyBeforeSubmit = getConversationHistory();
 
@@ -1681,6 +1695,9 @@ async function handleSubmit(event) {
       currentAbortController = new AbortController();
       showStopButton();
 
+      const session = await getSession();
+      const authToken = session?.access_token || null;
+
       const streamResponse = await getStreamResponse(
         provider,
         assistantType,
@@ -1688,7 +1705,8 @@ async function handleSubmit(event) {
         [...historyBeforeSubmit, { role: "user", content: message }],
         memories,
         existingConversationId,
-        currentAbortController.signal
+        currentAbortController.signal,
+        authToken
       );
 
       const reader = streamResponse.body.getReader();
@@ -1883,39 +1901,7 @@ async function handleSubmit(event) {
     hideUploadStatus();
     hideStopButton();
 
-    addMessage("assistant", getFriendlyErrorMessage(error));
-    renderMessages();
-
-    // Adiciona botão de retry na última mensagem de erro
-    if (lastSubmission) {
-      const container = document.getElementById("chatMessages");
-      const rows = container?.querySelectorAll(".row-assistant");
-      const lastRow = rows?.[rows.length - 1];
-      if (lastRow) {
-        let actions = lastRow.querySelector(".message-actions");
-        if (!actions) {
-          actions = document.createElement("div");
-          actions.className = "message-actions";
-          lastRow.querySelector(".message-box")?.appendChild(actions);
-        }
-        const retryBtn = document.createElement("button");
-        retryBtn.type = "button";
-        retryBtn.className = "retry-btn";
-        retryBtn.textContent = "Tentar novamente";
-        retryBtn.addEventListener("click", () => {
-          // Remove mensagem de erro e a mensagem do usuário do histórico
-          const h = getChatHistory();
-          if (h.length >= 2) h.splice(-2, 2);
-          saveChatHistory(h);
-          // Restaura o texto no input e re-envia
-          const inp = document.getElementById("messageInput");
-          if (inp) inp.value = lastSubmission.message;
-          handleSubmit({ preventDefault: () => {} });
-        });
-        actions.appendChild(retryBtn);
-      }
-    }
-
+    showToast(getFriendlyErrorMessage(error));
     console.error("erro ao enviar a mensagem:", error);
   }
 }
@@ -2128,4 +2114,7 @@ window.exportConversation = exportConversation;
 window.logout = logout;
 
 // Inicia tudo quando o HTML carregar.
-document.addEventListener("DOMContentLoaded", initializeChat)
+document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
+  initializeChat();
+})
