@@ -406,6 +406,79 @@ async function loadStats() {
 }
 
 // ----------------------------------------------------------
+// USO POR USUÁRIO
+// ----------------------------------------------------------
+
+async function loadUserStats() {
+  const token = await getAuthToken();
+  const container = document.getElementById("userStatsContent");
+
+  try {
+    const [statsRes, usersRes] = await Promise.all([
+      fetchWithFallback("/admin/user-stats", { headers: { Authorization: `Bearer ${token}` } }),
+      fetchWithFallback("/admin/users", { headers: { Authorization: `Bearer ${token}` } })
+    ]);
+
+    const { stats } = await statsRes.json();
+    const { users } = await usersRes.json();
+
+    const emailMap = {};
+    (users || []).forEach(u => { emailMap[u.id] = u.email; });
+
+    const getTopAgent = (agents) => {
+      const entries = Object.entries(agents || {});
+      if (!entries.length) return "—";
+      const [key, count] = entries.sort((a, b) => b[1] - a[1])[0];
+      return `${AGENT_LABELS[key] || key} (${count})`;
+    };
+
+    const rows = Object.entries(stats || {})
+      .map(([uid, data]) => ({ email: emailMap[uid] || uid, ...data }))
+      .sort((a, b) => b.total - a.total);
+
+    if (rows.length === 0) {
+      container.innerHTML = `<p class="admin-loading">Nenhum dado de uso ainda.</p>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="admin-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Usuário</th>
+              <th>Conversas</th>
+              <th>Agente principal</th>
+              <th>Uso por agente</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td class="td-email">${r.email}</td>
+                <td>${r.total}</td>
+                <td>${getTopAgent(r.agents)}</td>
+                <td>
+                  <div class="agent-usage-pills">
+                    ${Object.entries(r.agents || {})
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([agent, count]) => `<span class="agent-pill">${AGENT_LABELS[agent] || agent}: ${count}</span>`)
+                      .join("")}
+                  </div>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<p class="admin-loading">Erro ao carregar dados.</p>`;
+    console.error(err);
+  }
+}
+
+// ----------------------------------------------------------
 // EDITOR DE SYSTEM PROMPTS
 // ----------------------------------------------------------
 
@@ -476,5 +549,6 @@ checkAdmin().then(() => {
   setupCreateForm();
   loadUsers();
   loadStats();
+  loadUserStats();
   loadPrompts();
 });

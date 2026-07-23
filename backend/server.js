@@ -1524,6 +1524,29 @@ app.delete("/admin/users/:userId", requireAdmin, async (req, res) => {
 // ROTA: Analytics (admin)
 // ----------------------------------------------------------
 
+app.get("/admin/user-stats", requireAdmin, async (req, res) => {
+  try {
+    const { data: convRows, error } = await supabaseAdmin
+      .from("conversations")
+      .select("user_id, assistant_type");
+
+    if (error) throw error;
+
+    const stats = {};
+    (convRows || []).forEach(c => {
+      const uid = c.user_id;
+      if (!stats[uid]) stats[uid] = { total: 0, agents: {} };
+      stats[uid].total++;
+      const agent = c.assistant_type || "general";
+      stats[uid].agents[agent] = (stats[uid].agents[agent] || 0) + 1;
+    });
+
+    return res.json({ stats });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/admin/stats", requireAdmin, async (req, res) => {
   try {
     const [

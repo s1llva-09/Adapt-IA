@@ -430,6 +430,91 @@ body.sidebar-collapsed .chat-sidebar {
   color: var(--text);
 }
 
+/* Abas de seções */
+
+.tabs-view-btn {
+  padding: 6px 10px;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.08);
+  color: #a5b4fc;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.tabs-view-btn:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.5);
+  transform: translateY(-1px);
+}
+
+.tabs-wrapper {
+  width: 100%;
+}
+
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.tab-btn {
+  padding: 5px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.tab-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--text);
+}
+
+.tab-btn.is-active {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.45);
+  color: #a5b4fc;
+}
+
+.tab-content {
+  line-height: 1.65;
+}
+
+[data-theme="light"] .tabs-view-btn {
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.06);
+  color: #2563eb;
+}
+
+[data-theme="light"] .tabs-view-btn:hover {
+  background: rgba(37, 99, 235, 0.14);
+  border-color: rgba(37, 99, 235, 0.45);
+}
+
+[data-theme="light"] .tab-btn {
+  border-color: rgba(15, 23, 42, 0.15);
+  color: #475569;
+}
+
+[data-theme="light"] .tab-btn:hover {
+  background: rgba(37, 99, 235, 0.07);
+  border-color: rgba(37, 99, 235, 0.25);
+  color: #1e40af;
+}
+
+[data-theme="light"] .tab-btn.is-active {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.38);
+  color: #1d4ed8;
+}
+
 .retry-btn {
   padding: 6px 12px;
   border: 1px solid rgba(99, 102, 241, 0.35);

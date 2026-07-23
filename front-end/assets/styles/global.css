@@ -151,8 +151,8 @@ button {
 [data-theme="light"] .conversation-search { background: #f1f5f9; color: #0f172a; border-color: rgba(15, 23, 42, 0.12); }
 [data-theme="light"] .conversation-search::placeholder { color: #94a3b8; }
 [data-theme="light"] .conversation-item { background: #f8fafc; color: #0f172a; border-color: rgba(15, 23, 42, 0.08); }
-[data-theme="light"] .conversation-item:hover,
-[data-theme="light"] .conversation-item.is-active { background: #eff6ff; border-color: rgba(37, 99, 235, 0.25); }
+[data-theme="light"] .conversation-item:hover { background: #eff6ff; border-color: rgba(37, 99, 235, 0.2); }
+[data-theme="light"] .conversation-item.active { background: #dbeafe; border-color: rgba(37, 99, 235, 0.35); }
 [data-theme="light"] .conversation-item-title { color: #0f172a; }
 [data-theme="light"] .conversation-item-date { color: #64748b; }
 [data-theme="light"] .logout-icon-btn { background: rgba(239, 68, 68, 0.06); color: #dc2626; border-color: rgba(239, 68, 68, 0.2); }

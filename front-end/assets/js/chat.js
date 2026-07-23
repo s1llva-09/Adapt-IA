@@ -401,6 +401,88 @@ function formatMarkdown(text) {
   return html;
 }
 
+// Injeta botões "Copiar" em cada bloco de código dentro de um container DOM.
+function attachCodeCopyButtons(container) {
+  container.querySelectorAll("pre.code-block:not(.has-copy-btn)").forEach(pre => {
+    pre.classList.add("has-copy-btn");
+    const codeWrapper = document.createElement("div");
+    codeWrapper.className = "code-block-wrapper";
+    pre.parentNode.insertBefore(codeWrapper, pre);
+    codeWrapper.appendChild(pre);
+
+    const copyCodeBtn = document.createElement("button");
+    copyCodeBtn.type = "button";
+    copyCodeBtn.className = "code-copy-btn";
+    copyCodeBtn.textContent = "Copiar";
+    copyCodeBtn.addEventListener("click", () => {
+      const codeEl = pre.querySelector("code") || pre;
+      copyToClipboard(codeEl.textContent.trim(), copyCodeBtn);
+    });
+    codeWrapper.appendChild(copyCodeBtn);
+  });
+}
+
+// Extrai seções ## / ### de um markdown, retornando [{title, content}].
+function detectSections(markdown) {
+  const lines = markdown.split("\n");
+  const sections = [];
+  let currentTitle = null;
+  let currentLines = [];
+
+  for (const line of lines) {
+    const match = line.match(/^#{2,3} (.+)/);
+    if (match) {
+      if (currentTitle !== null) {
+        sections.push({ title: currentTitle, content: currentLines.join("\n").trim() });
+      }
+      currentTitle = match[1].trim();
+      currentLines = [];
+    } else if (currentTitle !== null) {
+      currentLines.push(line);
+    }
+  }
+  if (currentTitle !== null && currentLines.join("").trim()) {
+    sections.push({ title: currentTitle, content: currentLines.join("\n").trim() });
+  }
+  return sections;
+}
+
+// Renderiza o bubble como abas. Espera sections.length >= 2.
+function renderAsTabs(bubble, sections) {
+  let activeIndex = 0;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "tabs-wrapper";
+
+  const tabBar = document.createElement("div");
+  tabBar.className = "tab-bar";
+
+  const tabContent = document.createElement("div");
+  tabContent.className = "tab-content";
+
+  sections.forEach((section, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tab-btn" + (i === 0 ? " is-active" : "");
+    btn.textContent = section.title;
+    btn.addEventListener("click", () => {
+      tabBar.querySelectorAll(".tab-btn").forEach(t => t.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      tabContent.innerHTML = formatMarkdown(sections[i].content);
+      attachCodeCopyButtons(tabContent);
+    });
+    tabBar.appendChild(btn);
+  });
+
+  tabContent.innerHTML = formatMarkdown(sections[0].content);
+  attachCodeCopyButtons(tabContent);
+  wrapper.appendChild(tabBar);
+  wrapper.appendChild(tabContent);
+
+  bubble.innerHTML = "";
+  bubble.appendChild(wrapper);
+}
+
 // Remove blocos JSON que a IA escreve quando tenta "desenhar" grafico em texto.
 // Quando o backend ja enviou data.chart, o grafico visual fica abaixo da resposta,
 // entao esse JSON cru so deixa a interface poluida.
@@ -786,24 +868,8 @@ function createMessageElement(
   } else {
     bubble.innerHTML = formatMarkdown(content);
 
-    // Adiciona botão de copiar em cada bloco de código
     if (role === "assistant") {
-      bubble.querySelectorAll("pre.code-block").forEach(pre => {
-        const codeWrapper = document.createElement("div");
-        codeWrapper.className = "code-block-wrapper";
-        bubble.insertBefore(codeWrapper, pre);
-        codeWrapper.appendChild(pre);
-
-        const copyCodeBtn = document.createElement("button");
-        copyCodeBtn.type = "button";
-        copyCodeBtn.className = "code-copy-btn";
-        copyCodeBtn.textContent = "Copiar";
-        copyCodeBtn.addEventListener("click", () => {
-          const codeEl = pre.querySelector("code") || pre;
-          copyToClipboard(codeEl.textContent.trim(), copyCodeBtn);
-        });
-        codeWrapper.appendChild(copyCodeBtn);
-      });
+      attachCodeCopyButtons(bubble);
     }
   }
 
@@ -830,7 +896,7 @@ function createMessageElement(
     messageBox.appendChild(timeEl);
   }
 
-  // Botão copiar apenas para respostas da IA.
+  // Botão copiar e (quando aplicável) Ver em abas — apenas para respostas da IA.
   if (role === "assistant" && !useTyping && content) {
     const actions = document.createElement("div");
     actions.classList.add("message-actions");
@@ -839,10 +905,30 @@ function createMessageElement(
     copyButton.classList.add("copy-btn");
     copyButton.type = "button";
     copyButton.textContent = "Copiar";
-
     copyButton.addEventListener("click", () => {
       copyToClipboard(content, copyButton);
     });
+
+    const sections = detectSections(content);
+    if (sections.length >= 2) {
+      const tabsBtn = document.createElement("button");
+      tabsBtn.type = "button";
+      tabsBtn.className = "tabs-view-btn";
+      tabsBtn.textContent = "Ver em abas";
+      tabsBtn.addEventListener("click", () => {
+        if (tabsBtn.dataset.mode === "tabs") {
+          bubble.innerHTML = formatMarkdown(content);
+          attachCodeCopyButtons(bubble);
+          tabsBtn.textContent = "Ver em abas";
+          delete tabsBtn.dataset.mode;
+        } else {
+          renderAsTabs(bubble, sections);
+          tabsBtn.textContent = "Ver texto";
+          tabsBtn.dataset.mode = "tabs";
+        }
+      });
+      actions.appendChild(tabsBtn);
+    }
 
     actions.appendChild(copyButton);
     messageBox.appendChild(actions);
